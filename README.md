@@ -40,6 +40,7 @@ df = lazy_df.collect()
 
 - [x] Column Mapping
 - [x] Almost Data Types, including Structs/Lists, Map yet to be done
+- [ ] Test data types, including datetime
 - [ ] Deletion Vectors
 
 This does not do a Delta Lake Feature check yet, which is problematic for Deletion Vectors which are not supported yet.
