@@ -55,7 +55,7 @@ def _get_expr(
                 for subfield in dtype.fields
             }
         )
-        if alias:
+        if alias and meta is not None:
             return struct_expr.as_(meta.name)
         return struct_expr
     elif isinstance(dtype, ArrayType):
@@ -71,11 +71,11 @@ def _get_expr(
                 counter=counter + 1,
             ),
         )
-        if alias:
+        if alias and meta is not None:
             return vl.as_(meta.name)
         return vl
 
-    return base_expr.as_(meta.name) if meta and alias else base_expr
+    return base_expr.as_(meta.name) if meta is not None and alias else base_expr
 
 
 def get_sql_for_delta_expr(

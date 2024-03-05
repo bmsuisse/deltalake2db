@@ -21,7 +21,7 @@ def _get_expr(
         assert pn is not None
         base_expr = pl.col(pn)
     if isinstance(dtype, StructType):
-        return pl.struct(
+        struct_vl = pl.struct(
             *[
                 _get_expr(
                     base_expr.struct.field(
@@ -34,11 +34,13 @@ def _get_expr(
                 )
                 for subfield in dtype.fields
             ]
-        ).alias(meta.name)
+        )
+        return struct_vl.alias(meta.name) if meta else struct_vl
     elif isinstance(dtype, ArrayType):
-        return base_expr.list.eval(
+        list_vl = base_expr.list.eval(
             _get_expr(pl.element(), dtype=dtype.element_type, meta=meta)
-        ).alias(meta.name)
+        )
+        return list_vl.alias(meta.name) if meta else list_vl
     return base_expr.alias(meta.name) if meta else base_expr
 
 
