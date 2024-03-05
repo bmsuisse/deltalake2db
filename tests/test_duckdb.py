@@ -1,16 +1,22 @@
 from collections import OrderedDict
 from deltalake import DeltaTable
+import duckdb
 import polars as pl
 
 
 def test_col_mapping():
     dt = DeltaTable("tests/data/faker2")
 
-    from deltalake2db import polars_scan_delta
+    from deltalake2db import get_sql_for_delta
 
-    df = polars_scan_delta(dt)
+    with duckdb.connect() as con:
 
-    df = df.collect()
+        sql = get_sql_for_delta(dt, duck_con=con)
+        print(sql)
+        con.execute("create view delta_table as " + sql)
+
+        df = pl.from_arrow(con.execute("select * from delta_table").fetch_arrow_table())
+        print(df)
 
     assert isinstance(df.schema["main_coord"], pl.Struct)
     fields = df.schema["main_coord"].fields

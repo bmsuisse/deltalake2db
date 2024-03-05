@@ -1,4 +1,7 @@
-import polars as pl
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import polars as pl
 from deltalake import DeltaTable, Field, DataType
 from deltalake.schema import StructType, ArrayType
 import os
@@ -7,6 +10,8 @@ import os
 def _get_expr(
     base_expr: "pl.Expr|None", dtype: "DataType", meta: Field | None
 ) -> "pl.Expr":
+    import polars as pl
+
     pn = (
         meta.metadata.get("delta.columnMapping.physicalName", meta.name)
         if meta
@@ -37,7 +42,8 @@ def _get_expr(
     return base_expr.alias(meta.name) if meta else base_expr
 
 
-def scan_delta_union(delta_table: DeltaTable) -> pl.LazyFrame:
+def scan_delta_union(delta_table: DeltaTable) -> "pl.LazyFrame":
+    import polars as pl
 
     all_ds = []
     all_fields = delta_table.schema().fields
@@ -46,7 +52,7 @@ def scan_delta_union(delta_table: DeltaTable) -> pl.LazyFrame:
         base_ds = pl.scan_parquet(
             fullpath, storage_options=delta_table._storage_options
         )
-        parquet_schema = base_ds.schema
+        parquet_schema = base_ds.limit(0).schema
         selects = []
         for field in all_fields:
             pn = field.metadata.get("delta.columnMapping.physicalName", field.name)

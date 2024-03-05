@@ -9,13 +9,14 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 deltalake = "^0.15.3"
-polars = "^0.20.13"
-duckdb = "^0.10.0"
+sqlglot = ">=22.2.1"
 
 [tool.poetry.group.dev.dependencies]
 pyright = "^1.1.352"
 pytest = "^8.1.0"
 black = "^24.2.0"
+polars = "^0.20.13"
+duckdb = "^0.10.0"
 
 [build-system]
 requires = ["poetry-core"]

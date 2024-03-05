@@ -451,6 +451,21 @@ testing = ["build[virtualenv]", "filelock (>=3.4.0)", "flake8-2020", "ini2toml[l
 testing-integration = ["build[virtualenv] (>=1.0.3)", "filelock (>=3.4.0)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "packaging (>=23.2)", "pytest", "pytest-enabler", "pytest-xdist", "tomli", "virtualenv (>=13.0.0)", "wheel"]
 
 [[package]]
+name = "sqlglot"
+version = "22.2.1"
+description = "An easily customizable SQL parser and transpiler"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "sqlglot-22.2.1-py3-none-any.whl", hash = "sha256:91609c5d01e59164a5aa5ade41348cc381403349e5d4ac074dbc762ded624d20"},
+    {file = "sqlglot-22.2.1.tar.gz", hash = "sha256:ec9901dc05436aaf9bafaa083224c84503bbadacc3e7cc386748c1bd404679fd"},
+]
+
+[package.extras]
+dev = ["duckdb (>=0.6)", "maturin (>=1.4,<2.0)", "mypy", "pandas", "pdoc", "pre-commit", "pyspark", "python-dateutil", "ruff", "types-python-dateutil", "typing-extensions"]
+rs = ["sqlglotrs (==0.1.2)"]
+
+[[package]]
 name = "tomli"
 version = "2.0.1"
 description = "A lil' TOML parser"
@@ -475,4 +490,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "487fb753661180c744bc7f4adf0beaab3245748a3c0a02399bbd5aefd9e9b042"
+content-hash = "0f0b12c27f56c6ef6382efbecd530618ba1436c0eff24bb06792183955268f85"
