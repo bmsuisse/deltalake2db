@@ -13,8 +13,13 @@ sqlglot = ">=22.2.1"
 
 [tool.poetry.group.dev.dependencies]
 pyright = "^1.1.352"
-pytest = "^8.1.0"
 black = "^24.2.0"
+polars = "^0.20.13"
+duckdb = "^0.10.0"
+
+[tool.poetry.group.test.dependencies]
+pytest-cov = "^4.1.0"
+pytest = "^8.1.0"
 polars = "^0.20.13"
 duckdb = "^0.10.0"
 
