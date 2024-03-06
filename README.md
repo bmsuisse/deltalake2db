@@ -40,6 +40,15 @@ df = lazy_df.collect()
 
 - [x] Column Mapping
 - [x] Almost Data Types, including Structs/Lists, Map yet to be done
+- [ ] Test data types, including datetime
 - [ ] Deletion Vectors
 
 This does not do a Delta Lake Feature check yet, which is problematic for Deletion Vectors which are not supported yet.
+
+
+## Looking for something different? :)
+
+We also have the following projects around deltalake:
+
+- [LakeAPI](https://github.com/bmsuisse/lakeapi) for providing deltalake Tables
+- [Odbc2deltalake](https://github.com/bmsuisse/odbc2deltalake) to load MS SQL Server/ODBC Tables to Deltalake
