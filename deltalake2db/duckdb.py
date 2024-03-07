@@ -35,25 +35,32 @@ def _get_expr(
         assert pn is not None
         base_expr = ex.Column(this=pn)
     if isinstance(dtype, StructType):
-        struct_expr = squ.struct(
-            {
-                subfield.name: _get_expr(
-                    ex.Dot(
-                        this=base_expr,
-                        expression=ex.Identifier(
-                            this=subfield.metadata.get(
-                                "delta.columnMapping.physicalName", subfield.name
+        struct_expr = (
+            ex.case()
+            .when(base_expr.is_(ex.Null()), ex.Null())
+            .else_(
+                squ.struct(
+                    {
+                        subfield.name: _get_expr(
+                            ex.Dot(
+                                this=base_expr,
+                                expression=ex.Identifier(
+                                    this=subfield.metadata.get(
+                                        "delta.columnMapping.physicalName",
+                                        subfield.name,
+                                    ),
+                                    quoted=True,
+                                ),
                             ),
-                            quoted=True,
-                        ),
-                    ),
-                    subfield.type,
-                    subfield,
-                    alias=False,
-                    counter=counter + 1,
+                            subfield.type,
+                            subfield,
+                            alias=False,
+                            counter=counter + 1,
+                        )
+                        for subfield in dtype.fields
+                    }
                 )
-                for subfield in dtype.fields
-            }
+            )
         )
         if alias and meta is not None:
             return struct_expr.as_(meta.name)

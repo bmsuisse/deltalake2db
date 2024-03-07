@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from deltalake import DeltaTable
 import polars as pl
+import pytest
 
 
 def test_col_mapping():
@@ -32,3 +33,18 @@ def test_col_mapping():
 
     as_py_rows = df.rows(named=True)
     print(as_py_rows)
+
+
+@pytest.mark.skip(reason="Polars reads null structs as structs, so no luck")
+def test_empty_struct():
+    dt = DeltaTable("tests/data/faker2")
+
+    from deltalake2db import polars_scan_delta
+
+    df = polars_scan_delta(dt)
+
+    df = df.collect()
+
+    mc = df.filter(new_name="Hans Heiri").select("main_coord").to_dicts()
+    assert len(mc) == 1
+    assert mc[0]["main_coord"] is None

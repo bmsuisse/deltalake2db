@@ -21,24 +21,37 @@ def _get_expr(
         assert pn is not None
         base_expr = pl.col(pn)
     if isinstance(dtype, StructType):
-        struct_vl = pl.struct(
-            *[
-                _get_expr(
-                    base_expr.struct.field(
-                        subfield.metadata.get(
-                            "delta.columnMapping.physicalName", subfield.name
+
+        struct_vl = (
+            pl.when(base_expr.is_null())
+            .then(pl.lit(None))
+            .otherwise(
+                pl.struct(
+                    *[
+                        _get_expr(
+                            base_expr.struct.field(
+                                subfield.metadata.get(
+                                    "delta.columnMapping.physicalName", subfield.name
+                                )
+                            ),
+                            subfield.type,
+                            subfield,
                         )
-                    ),
-                    subfield.type,
-                    subfield,
+                        for subfield in dtype.fields
+                    ]
                 )
-                for subfield in dtype.fields
-            ]
+            )
         )
         return struct_vl.alias(meta.name) if meta else struct_vl
     elif isinstance(dtype, ArrayType):
-        list_vl = base_expr.list.eval(
-            _get_expr(pl.element(), dtype=dtype.element_type, meta=meta)
+        list_vl = (
+            pl.when(base_expr.is_null())
+            .then(pl.lit(None))
+            .otherwise(
+                base_expr.list.eval(
+                    _get_expr(pl.element(), dtype=dtype.element_type, meta=meta)
+                )
+            )
         )
         return list_vl.alias(meta.name) if meta else list_vl
     return base_expr.alias(meta.name) if meta else base_expr

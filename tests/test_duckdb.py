@@ -2,6 +2,7 @@ from collections import OrderedDict
 from deltalake import DeltaTable
 import duckdb
 import polars as pl
+import pytest
 
 
 def test_col_mapping():
@@ -38,3 +39,23 @@ def test_col_mapping():
 
     as_py_rows = df.rows(named=True)
     print(as_py_rows)
+
+
+@pytest.mark.skip(reason="Duckdb unions structs and nulls to structs, so no luck")
+def test_empty_struct():
+    # >>> duckdb.execute("""Select { 'lat': 1 } as tester union all select Null""").fetchall()
+    dt = DeltaTable("tests/data/faker2")
+
+    from deltalake2db import get_sql_for_delta
+
+    with duckdb.connect() as con:
+
+        sql = get_sql_for_delta(dt, duck_con=con)
+        print(sql)
+        con.execute("create view delta_table as " + sql)
+
+        df = pl.from_arrow(con.execute("select * from delta_table").fetch_arrow_table())
+        print(df)
+        mc = df.filter(new_name="Hans Heiri").select("main_coord").to_dicts()
+        assert len(mc) == 1
+        assert mc[0]["main_coord"] is None
