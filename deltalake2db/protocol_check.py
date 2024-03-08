@@ -12,6 +12,7 @@ def is_protocol_supported(dt: DeltaTable):
     prot = dt.protocol()
     if prot.min_reader_version <= 3:
         return True
+    assert prot.reader_features is not None
     un_supported = [
         f for f in prot.reader_features if f not in supported_reader_features
     ]
@@ -22,6 +23,7 @@ def check_is_supported(dt: DeltaTable):
     prot = dt.protocol()
     if prot.min_reader_version <= 3:
         return
+    assert prot.reader_features is not None
     un_supported = [
         f for f in prot.reader_features if f not in supported_reader_features
     ]
