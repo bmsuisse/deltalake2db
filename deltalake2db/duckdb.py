@@ -102,6 +102,10 @@ def get_sql_for_delta_expr(
         from deltalake import DeltaTable
 
         dt = DeltaTable(dt)
+    from .protocol_check import check_is_supported
+
+    check_is_supported(dt)
+
     delta_table_cte_name = delta_table_cte_name or sql_prefix + "_delta_table"
     dt.update_incremental()
     from deltalake.schema import PrimitiveType

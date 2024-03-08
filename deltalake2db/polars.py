@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import polars as pl
 from deltalake import DeltaTable, Field, DataType
+from deltalake.exceptions import DeltaProtocolError
 from deltalake.schema import StructType, ArrayType
 import os
 
@@ -59,7 +60,9 @@ def _get_expr(
 
 def scan_delta_union(delta_table: DeltaTable) -> "pl.LazyFrame":
     import polars as pl
+    from .protocol_check import check_is_supported
 
+    check_is_supported(delta_table)
     all_ds = []
     all_fields = delta_table.schema().fields
     for ac in delta_table.get_add_actions(flatten=True).to_pylist():

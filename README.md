@@ -43,8 +43,7 @@ df = lazy_df.collect()
 - [ ] Test data types, including datetime
 - [ ] Deletion Vectors
 
-This does not do a Delta Lake Feature check yet, which is problematic for Deletion Vectors which are not supported yet.
-
+In case there is an unsupported DeltaLake Feature, this will just throw `DeltaProtocolError` as does delta-rs
 
 ## Looking for something different? :)
 
