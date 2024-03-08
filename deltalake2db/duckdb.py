@@ -85,6 +85,64 @@ def _get_expr(
     return base_expr.as_(meta.name) if meta is not None and alias else base_expr
 
 
+def apply_storage_options(
+    con: "duckdb.DuckDBPyConnection", storage_options: dict, force_create_secret=True
+):
+    with con.cursor() as cur:
+        cur.execute("FROM duckdb_secrets() where type='azure';")
+        secrets = cur.fetchall()
+        se_names = [s[0] for s in secrets]
+    if len(se_names) > 0:  # for now, only one secret is supported in DuckDB, it seems
+        return
+    secrect_name = storage_options.get(
+        "account_name",
+        storage_options.get(
+            "azure_storage_account_name",
+            "_emulator" if storage_options.get("use_emulator", "0") == "True" else "",
+        ),
+    )
+
+    if secrect_name not in se_names:
+        if "connection_string" in storage_options:
+            cr = storage_options["connection_string"]
+            con.execute(
+                f"""CREATE SECRET {secrect_name} (
+TYPE AZURE,
+CONNECTION_STRING '{cr}'
+);"""
+            )
+        elif "account_name" in storage_options and "account_key" in storage_options:
+            an = storage_options["account_name"]
+            ak = storage_options["account_key"]
+            conn_str = f"AccountName={an};AccountKey={ak};BlobEndpoint=https://{an}.blob.core.windows.net;"
+            con.execute(
+                f"""CREATE SECRET {secrect_name} (
+TYPE AZURE,
+CONNECTION_STRING '{conn_str}'
+);"""
+            )
+        elif "account_name" in storage_options:
+            an = storage_options["account_name"]
+            con.execute(
+                f"""CREATE SECRET {secrect_name} (
+TYPE AZURE,
+PROVIDER CREDENTIAL_CHAIN,
+ACCOUNT_NAME '{an}'
+);"""
+            )
+        elif storage_options.get("use_emulator", None):
+            con.execute(
+                f"""CREATE SECRET {secrect_name} (
+TYPE AZURE,
+CONNECTION_STRING 'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;'
+);"""
+            )
+        else:
+            raise ValueError(
+                "No connection string or account_name and account_key provided"
+            )
+
+
 def get_sql_for_delta_expr(
     dt: "DeltaTable | Path",
     conditions: dict | None | Sequence[ex.Expression] | ex.Expression = None,
@@ -119,12 +177,28 @@ def get_sql_for_delta_expr(
 
         duck_con = duckdb.connect()
         owns_con = True
+    if dt.table_uri.startswith("az://"):
+        with duck_con.cursor() as cur:
+            cur.execute(
+                "select loaded, installed from duckdb_extensions() where extension_name='azure' "
+            )
+            res = cur.fetchone()
+            loaded = res[0] if res else False
+            installed = res[0] if res else False
+        if not installed:
+            duck_con.install_extension("azure")
+        if not loaded:
+            duck_con.load_extension("azure")
+        apply_storage_options(
+            duck_con, dt._storage_options, force_create_secret=owns_con
+        )
+
     try:
 
         for ac in dt.get_add_actions(flatten=True).to_pylist():
             if action_filter and not action_filter(ac):
                 continue
-            fullpath = os.path.join(dt.table_uri, ac["path"])
+            fullpath = dt.table_uri.removesuffix("/") + "/" + ac["path"]
             with duck_con.cursor() as cur:
                 cur.execute(f"select name from parquet_schema('{fullpath}')")
                 cols: list[str] = [c[0] for c in cur.fetchall()]
@@ -171,7 +245,7 @@ def get_sql_for_delta_expr(
                     cols_sql.append(ex.Null().as_(field_name))
 
             select_pq = ex.select(*cols_sql).from_(
-                read_parquet(Path(fullpath))
+                read_parquet(ex.convert(fullpath))
             )  # "SELECT " + ", ".join(cols_sql) + " FROM read_parquet('" + fullpath + "')"
             file_selects.append(select_pq)
         if len(file_selects) == 0:

@@ -45,6 +45,10 @@ df = lazy_df.collect()
 
 In case there is an unsupported DeltaLake Feature, this will just throw `DeltaProtocolError` as does delta-rs
 
+## Cloud Support
+
+For now, only az:// Url's for Azure are tested and supported in DuckDB. For polars it's a lot easier, since polars just uses `object_store` create, so it should just work.
+
 ## Looking for something different? :)
 
 We also have the following projects around deltalake:
