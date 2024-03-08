@@ -189,6 +189,7 @@ def get_sql_for_delta_expr(
             duck_con.install_extension("azure")
         if not loaded:
             duck_con.load_extension("azure")
+        assert dt._storage_options is not None
         apply_storage_options(
             duck_con, dt._storage_options, force_create_secret=owns_con
         )
