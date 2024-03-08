@@ -41,9 +41,10 @@ def test_col_mapping():
     print(as_py_rows)
 
 
-@pytest.mark.skip(reason="Duckdb unions structs and nulls to structs, so no luck")
 def test_empty_struct():
     # >>> duckdb.execute("""Select { 'lat': 1 } as tester union all select Null""").fetchall()
+    import pyarrow as pa
+
     dt = DeltaTable("tests/data/faker2")
 
     from deltalake2db import get_sql_for_delta
@@ -54,8 +55,12 @@ def test_empty_struct():
         print(sql)
         con.execute("create view delta_table as " + sql)
 
-        df = pl.from_arrow(con.execute("select * from delta_table").fetch_arrow_table())
+        df = con.execute("select * from delta_table").fetch_arrow_table()
         print(df)
-        mc = df.filter(new_name="Hans Heiri").select("main_coord").to_dicts()
+        mc = (
+            df.filter(pa.compute.field("new_name") == "Hans Heiri")
+            .select(["main_coord"])
+            .to_pylist()
+        )
         assert len(mc) == 1
         assert mc[0]["main_coord"] is None
