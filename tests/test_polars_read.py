@@ -2,6 +2,7 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 from deltalake2db import polars_scan_delta
+from datetime import datetime
 
 
 @pytest.fixture()
@@ -20,6 +21,17 @@ def data_batch_1():
                 201007,
                 201008,
                 201009,
+            ],
+            "datetime": [
+                datetime.fromisoformat("2010-01-01"),
+                datetime.fromisoformat("2010-02-01"),
+                datetime.fromisoformat("2010-03-01"),
+                datetime.fromisoformat("2010-04-01"),
+                datetime.fromisoformat("2010-05-01"),
+                datetime.fromisoformat("2010-06-01"),
+                datetime.fromisoformat("2010-07-01"),
+                datetime.fromisoformat("2010-08-01"),
+                datetime.fromisoformat("2010-09-01"),
             ],
             "static_part": ["A", "A", "A", "B", "B", "B", "C", "C", "C"],
         }
