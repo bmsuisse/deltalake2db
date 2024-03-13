@@ -59,7 +59,7 @@ def _get_expr(
     return base_expr.alias(meta.name) if meta else base_expr
 
 
-def _try_get_type(dtype: "DataType") -> "pl.DataType":
+def _try_get_type(dtype: "DataType") -> "pl.PolarsDataType | None":
     import polars as pl
 
     if not isinstance(dtype, PrimitiveType):
@@ -79,9 +79,9 @@ def _try_get_type(dtype: "DataType") -> "pl.DataType":
     elif dtype_str == "boolean":
         return pl.Boolean
     elif dtype_str == "date":
-        return pl.Date32
+        return pl.Date
     elif dtype_str == "timestamp":
-        return pl.DateTime
+        return pl.Datetime
     elif dtype_str == "binary":
         return pl.Binary
     elif dtype_str == "decimal":
