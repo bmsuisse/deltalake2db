@@ -143,6 +143,18 @@ CONNECTION_STRING 'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;Ac
             )
 
 
+type_map = {
+    "byte": ex.DataType.Type.UTINYINT,
+    "int": ex.DataType.Type.INT,
+    "long": ex.DataType.Type.BIGINT,
+    "boolean": ex.DataType.Type.BOOLEAN,
+    "date": ex.DataType.Type.DATE,
+    "timestamp": ex.DataType.Type.TIMESTAMP,
+    "float": ex.DataType.Type.FLOAT,
+    "double": ex.DataType.Type.DOUBLE,
+}
+
+
 def get_sql_for_delta_expr(
     dt: "DeltaTable | Path",
     conditions: dict | None | Sequence[ex.Expression] | ex.Expression = None,
@@ -211,8 +223,8 @@ def get_sql_for_delta_expr(
                 )
 
                 cast_as = None
-                if isinstance(field.type, PrimitiveType) and field.type.type == "byte":
-                    cast_as = ex.DataType.Type.UTINYINT
+                if isinstance(field.type, PrimitiveType):
+                    cast_as = type_map.get(field.type.type)
                 if "partition_values" in ac and phys_name in ac["partition_values"]:
                     cols_sql.append(
                         _cast(

@@ -55,3 +55,7 @@ We also have the following projects around deltalake:
 
 - [LakeAPI](https://github.com/bmsuisse/lakeapi) for providing deltalake Tables
 - [Odbc2deltalake](https://github.com/bmsuisse/odbc2deltalake) to load MS SQL Server/ODBC Tables to Deltalake
+
+Or projects from other people:
+
+- [polars-deltalake](https://github.com/ion-elgreco/polars-deltalake) An experimental native polars deltalake reader
