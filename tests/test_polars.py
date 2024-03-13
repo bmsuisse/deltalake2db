@@ -35,6 +35,18 @@ def test_col_mapping():
     print(as_py_rows)
 
 
+def test_strange_cols():
+    dt = DeltaTable("tests/data/user")
+
+    from deltalake2db import polars_scan_delta
+
+    df = polars_scan_delta(dt)
+
+    df = df.collect()
+    col_names = df.columns
+    assert "time stämp" in col_names
+
+
 @pytest.mark.skip(reason="Polars reads null structs as structs, so no luck")
 def test_empty_struct():
     dt = DeltaTable("tests/data/faker2")

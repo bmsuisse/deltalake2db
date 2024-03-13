@@ -85,9 +85,32 @@ def _get_expr(
     return base_expr.as_(meta.name) if meta is not None and alias else base_expr
 
 
+def load_install_azure(con: "duckdb.DuckDBPyConnection"):
+
+    with con.cursor() as cur:
+        cur.execute(
+            "select loaded, installed from duckdb_extensions() where extension_name='azure' "
+        )
+        res = cur.fetchone()
+        loaded = res[0] if res else False
+        installed = res[0] if res else False
+    if not installed:
+        con.install_extension("azure")
+    if not loaded:
+        con.load_extension("azure")
+
+
 def apply_storage_options(
-    con: "duckdb.DuckDBPyConnection", storage_options: dict, force_create_secret=True
+    con: "duckdb.DuckDBPyConnection",
+    storage_options: dict,
+    *,
+    type="azure",
 ):
+    if type in ["az", "abfs", "abfss"]:
+        type = "azure"
+    if type != "azure":
+        raise ValueError("Only azure is supported for now")
+    load_install_azure(con)
     with con.cursor() as cur:
         cur.execute("FROM duckdb_secrets() where type='azure';")
         secrets = cur.fetchall()
@@ -190,21 +213,7 @@ def get_sql_for_delta_expr(
         duck_con = duckdb.connect()
         owns_con = True
     if dt.table_uri.startswith("az://"):
-        with duck_con.cursor() as cur:
-            cur.execute(
-                "select loaded, installed from duckdb_extensions() where extension_name='azure' "
-            )
-            res = cur.fetchone()
-            loaded = res[0] if res else False
-            installed = res[0] if res else False
-        if not installed:
-            duck_con.install_extension("azure")
-        if not loaded:
-            duck_con.load_extension("azure")
-        assert dt._storage_options is not None
-        apply_storage_options(
-            duck_con, dt._storage_options, force_create_secret=owns_con
-        )
+        apply_storage_options(duck_con, dt._storage_options, type="azure")
 
     try:
 
