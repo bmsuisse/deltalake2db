@@ -178,6 +178,20 @@ type_map = {
 }
 
 
+def create_view_for_delta(
+    con: "duckdb.DuckDBPyConnection",
+    delta_table: "DeltaTable | Path",
+    view_name: str,
+    overwrite=True,
+):
+    sql = get_sql_for_delta(delta_table, duck_con=con)
+    assert '"' not in view_name
+    if overwrite:
+        con.execute(f'create or replace view "{view_name}" as {sql}')
+    else:
+        con.execute(f'create view "{view_name}" as {sql}')
+
+
 def get_sql_for_delta_expr(
     dt: "DeltaTable | Path",
     conditions: dict | None | Sequence[ex.Expression] | ex.Expression = None,

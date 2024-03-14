@@ -4,13 +4,16 @@ import sqlglot.expressions as ex
 
 
 def read_parquet(
-    path: Path | list[Path] | ex.Expression | list[ex.Expression],
+    path: str | Path | list[Path]| list[str] | ex.Expression | list[ex.Expression],
 ) -> ex.Expression:
     if isinstance(path, list):
         return ex.func(
             "read_parquet",
             ex.array(
-                *[ex.Literal.string(str(p)) if isinstance(p, Path) else p for p in path]
+                *[
+                    ex.Literal.string(str(p)) if isinstance(p, (str, Path)) else p
+                    for p in path
+                ]
             ),
             ex.EQ(
                 this=ex.Column(this=ex.Identifier(this="union_by_name", quoted=False)),
@@ -18,7 +21,8 @@ def read_parquet(
             ),
         )
     return ex.func(
-        "read_parquet", ex.Literal.string(str(path)) if isinstance(path, Path) else path
+        "read_parquet",
+        ex.Literal.string(str(path)) if isinstance(path, (str, Path)) else path,
     )
 
 

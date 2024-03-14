@@ -44,12 +44,10 @@ def test_col_mapping():
 def test_strange_cols():
     dt = DeltaTable("tests/data/user")
 
-    from deltalake2db import get_sql_for_delta
+    from deltalake2db import duckdb_create_view_for_delta
 
     with duckdb.connect() as con:
-
-        sql = get_sql_for_delta(dt, duck_con=con)
-        con.execute("create view delta_table as " + sql)
+        duckdb_create_view_for_delta(con, dt, "delta_table")
         con.execute("select * from delta_table")
         col_names = [c[0] for c in con.description]
         assert "time stämp" in col_names

@@ -11,13 +11,13 @@ Then you can do like this:
 
 ```python
 
-from deltalake2db import get_sql_for_delta
+from deltalake2db import get_sql_for_delta,
 
 with duckdb.connect() as con:
     dt = DeltaTable("tests/data/faker2")
     sql = get_sql_for_delta(dt, duck_con=con) # get select statement
     print(sql)
-    con.execute("create view delta_table as " + sql)
+    duckdb_create_view_for_delta(con, dt, "delta_table") # or let it create a view for you. will point to the data at this point in time
 
     con.execute("select * from delta_table").fetch_all()
 ```
