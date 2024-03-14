@@ -141,7 +141,19 @@ CONNECTION_STRING '{cr}'
             con.execute(
                 f"""CREATE SECRET {secrect_name} (
 TYPE AZURE,
-CONNECTION_STRING '{conn_str}'
+CONNECTION_STRING '{conn_str}',
+ACCOUNT_NAME '{an}'
+);"""
+            )
+        elif "account_name" in storage_options and "sas_token" in storage_options:
+            an = storage_options["account_name"]
+            sas_token = storage_options["sas_token"]
+            conn_str = f"BlobEndpoint=https://{an}.blob.core.windows.net;SharedAccessSignature={sas_token}"
+            con.execute(
+                f"""CREATE SECRET {secrect_name} (
+TYPE AZURE,
+CONNECTION_STRING '{conn_str}',
+ACCOUNT_NAME '{an}'
 );"""
             )
         elif "account_name" in storage_options:
@@ -157,7 +169,8 @@ ACCOUNT_NAME '{an}'
             con.execute(
                 f"""CREATE SECRET {secrect_name} (
 TYPE AZURE,
-CONNECTION_STRING 'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;'
+CONNECTION_STRING 'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;',
+ACCOUNT_NAME 'devstoreaccount1'
 );"""
             )
         else:
