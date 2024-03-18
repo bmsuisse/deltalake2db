@@ -54,6 +54,19 @@ def test_strange_cols():
         print(con.fetchall())
 
 
+def test_user_empty():
+    dt = DeltaTable("tests/data/user_empty")
+
+    from deltalake2db import duckdb_create_view_for_delta
+
+    with duckdb.connect() as con:
+        duckdb_create_view_for_delta(con, dt, "delta_table")
+        con.execute("select * from delta_table")
+        col_names = [c[0] for c in con.description]
+        assert "time stämp" in col_names
+        assert len(con.fetchall()) == 0
+
+
 def test_empty_struct():
     # >>> duckdb.execute("""Select { 'lat': 1 } as tester union all select Null""").fetchall()
     import pyarrow as pa

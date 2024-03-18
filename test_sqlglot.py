@@ -4,7 +4,7 @@ import sqlglot as sg
 print(
     repr(
         sg.parse_one(
-            "select list_transform(x_0 -> struct_pack(i := 4, s := 'string')), c.b",
+            "select map_from_entries([('a', 1)]) as tester",
             dialect="duckdb",
         )
     )

@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 from deltalake import DataType, Field
-from deltalake.schema import StructType, ArrayType
+from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
 import sqlglot.expressions as ex
 import deltalake2db.sql_utils as squ
 
@@ -16,6 +16,39 @@ def _cast(s: ex.Expression, t: ex.DataType.Type | None):
     if t is None:
         return s
     return ex.cast(s, t)
+
+
+def _dummy_expr(
+    field_type: "PrimitiveType | StructType | ArrayType | MapType",
+) -> ex.Expression:
+    from deltalake.schema import PrimitiveType
+
+    if isinstance(field_type, PrimitiveType):
+        cast_as = type_map.get(field_type.type)
+        return _cast(ex.Null(), cast_as)
+    elif isinstance(field_type, StructType):
+        return squ.struct(
+            {
+                subfield.name: _dummy_expr(subfield.type)
+                for subfield in field_type.fields
+            }
+        )
+    elif isinstance(field_type, ArrayType):
+        return ex.Array(expressions=[_dummy_expr(field_type.element_type)])
+    elif isinstance(field_type, MapType):
+        return ex.MapFromEntries(
+            this=ex.Array(
+                expressions=[
+                    ex.Tuple(
+                        expressions=[
+                            _dummy_expr(field_type.key_type),
+                            _dummy_expr(field_type.value_type),
+                        ]
+                    )
+                ]
+            )
+        )
+    raise ValueError(f"Unsupported type {field_type}")
 
 
 def _get_expr(
@@ -182,12 +215,18 @@ ACCOUNT_NAME 'devstoreaccount1'
 type_map = {
     "byte": ex.DataType.Type.UTINYINT,
     "int": ex.DataType.Type.INT,
+    "integer": ex.DataType.Type.INT,
     "long": ex.DataType.Type.BIGINT,
     "boolean": ex.DataType.Type.BOOLEAN,
     "date": ex.DataType.Type.DATE,
-    "timestamp": ex.DataType.Type.TIMESTAMP,
+    "timestamp": ex.DataType.Type.TIMESTAMPTZ,
     "float": ex.DataType.Type.FLOAT,
     "double": ex.DataType.Type.DOUBLE,
+    "string": ex.DataType.Type.VARCHAR,
+    "short": ex.DataType.Type.SMALLINT,
+    "binary": ex.DataType.Type.BINARY,
+    "timestampNtz": ex.DataType.Type.TIMESTAMP,
+    "decimal": ex.DataType.Type.DECIMAL,
 }
 
 
@@ -215,7 +254,7 @@ def get_sql_for_delta_expr(
     sql_prefix="delta",
     delta_table_cte_name: str | None = None,
     duck_con: "duckdb.DuckDBPyConnection | None" = None,
-) -> ex.Select | None:
+) -> ex.Select:
     from .sql_utils import read_parquet, union, filter_via_dict
 
     if isinstance(dt, Path):
@@ -298,7 +337,9 @@ def get_sql_for_delta_expr(
             )  # "SELECT " + ", ".join(cols_sql) + " FROM read_parquet('" + fullpath + "')"
             file_selects.append(select_pq)
         if len(file_selects) == 0:
-            return None
+            file_selects = []
+            fields = [_dummy_expr(field.type).as_(field.name) for field in delta_fields]
+            file_selects.append(ex.select(*fields).where("1=0"))
         file_sql = ex.CTE(
             this=union(file_selects, distinct=False), alias=delta_table_cte_name
         )
@@ -343,7 +384,7 @@ def get_sql_for_delta(
     cte_wrap_name: str | None = None,
     sql_prefix="delta",
     duck_con: "duckdb.DuckDBPyConnection | None" = None,
-) -> str | None:
+) -> str:
     expr = get_sql_for_delta_expr(
         dt=dt,
         conditions=conditions,
@@ -354,8 +395,6 @@ def get_sql_for_delta(
         cte_wrap_name=cte_wrap_name,
         duck_con=duck_con,
     )
-    if expr is None:
-        return None
     if cte_wrap_name:
         suffix_sql = ex.select(ex.Star()).from_(cte_wrap_name).sql(dialect="duckdb")
         ws = expr.sql(dialect="duckdb")
