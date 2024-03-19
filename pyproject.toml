@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "deltalake2db"
-version = "0.1.9"
+version = "0.2.0"
 description = ""
 authors = ["Adrian Ehrsam <adrian.ehrsam@bmsuisse.ch>"]
 license = "MIT"
@@ -8,14 +8,14 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-deltalake = ">=0.16.0"
+deltalake = ">=0.16.1"
 sqlglot = ">=22.2.1"
 
 [tool.poetry.group.dev.dependencies]
 pyright = "^1.1.352"
 black = "^24.2.0"
-polars = "^0.20.13"
-duckdb = "^0.10.0"
+polars = "^0.20.16"
+duckdb = "^0.10.1"
 
 [tool.poetry.group.test.dependencies]
 pytest-cov = "^4.1.0"

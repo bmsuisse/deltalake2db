@@ -278,7 +278,7 @@ def get_sql_for_delta_expr(
 
         duck_con = duckdb.connect()
         owns_con = True
-    if dt.table_uri.startswith("az://"):
+    if dt.table_uri.startswith("az://") or dt.table_uri.startswith("abfss://"):
         apply_storage_options(duck_con, dt._storage_options, type="azure")  # type: ignore
 
     try:
