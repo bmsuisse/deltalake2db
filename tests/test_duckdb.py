@@ -67,6 +67,41 @@ def test_user_empty():
         assert len(con.fetchall()) == 0
 
 
+def test_user_add():
+    import shutil
+    import pandas as pd
+
+    shutil.rmtree("tests/data/_user2", ignore_errors=True)
+    shutil.copytree("tests/data/user", "tests/data/_user2")
+    dt = DeltaTable("tests/data/_user2")
+    old_version = dt.version()
+    from deltalake.writer import write_deltalake
+
+    write_deltalake(
+        dt,
+        pd.DataFrame({"User - iD": [1555], "FirstName": ["Hansueli"]}),
+        schema_mode="merge",
+        engine="rust",
+        mode="append",
+    )
+    dt.update_incremental()
+
+    dt_o = DeltaTable("tests/data/_user2")
+    dt_o.load_as_version(old_version)
+
+    from deltalake2db import duckdb_create_view_for_delta
+
+    with duckdb.connect() as con:
+        duckdb_create_view_for_delta(con, dt, "delta_table_n")
+        duckdb_create_view_for_delta(con, dt_o, "delta_table_o")
+        con.execute(
+            'select "User - iD" from delta_table_n except select "User - iD" from delta_table_o'
+        )
+        res = con.fetchall()
+        assert len(res) == 1
+        assert res[0][0] == 1555
+
+
 def test_empty_struct():
     # >>> duckdb.execute("""Select { 'lat': 1 } as tester union all select Null""").fetchall()
     import pyarrow as pa

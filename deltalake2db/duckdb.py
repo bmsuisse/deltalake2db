@@ -266,7 +266,6 @@ def get_sql_for_delta_expr(
     check_is_supported(dt)
 
     delta_table_cte_name = delta_table_cte_name or sql_prefix + "_delta_table"
-    dt.update_incremental()
     from deltalake.schema import PrimitiveType
 
     file_selects: list[ex.Select] = []

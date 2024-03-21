@@ -35,6 +35,37 @@ def test_col_mapping():
     print(as_py_rows)
 
 
+def test_user_add():
+    import shutil
+    import pandas as pd
+
+    shutil.rmtree("tests/data/_user3", ignore_errors=True)
+    shutil.copytree("tests/data/user", "tests/data/_user3")
+    dt = DeltaTable("tests/data/_user3")
+    old_version = dt.version()
+    from deltalake.writer import write_deltalake
+
+    write_deltalake(
+        dt,
+        pd.DataFrame({"User - iD": [1555], "FirstName": ["Hansueli"]}),
+        schema_mode="merge",
+        engine="rust",
+        mode="append",
+    )
+    dt.update_incremental()
+
+    dt_o = DeltaTable("tests/data/_user3")
+    dt_o.load_as_version(old_version)
+
+    from deltalake2db import polars_scan_delta
+    import polars as pl
+
+    nc = polars_scan_delta(dt).select(pl.col("User - iD")).collect().to_dicts()
+    oc = polars_scan_delta(dt_o).select(pl.col("User - iD")).collect().to_dicts()
+    diff = [o["User - iD"] for o in nc if o not in oc]
+    assert diff == [1555]
+
+
 def test_strange_cols():
     dt = DeltaTable("tests/data/user")
 
