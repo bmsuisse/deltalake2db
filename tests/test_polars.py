@@ -66,6 +66,16 @@ def test_user_add():
     assert diff == [1555]
 
 
+def test_user_empty():
+    dt = DeltaTable("tests/data/user_empty")
+
+    from deltalake2db import polars_scan_delta
+
+    df = polars_scan_delta(dt).collect()
+    assert df.shape[0] == 0
+    assert "time stämp" in df.columns
+
+
 def test_strange_cols():
     dt = DeltaTable("tests/data/user")
 

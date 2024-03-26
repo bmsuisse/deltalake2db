@@ -5,7 +5,7 @@ if TYPE_CHECKING:
     import polars as pl
 from deltalake import DeltaTable, Field, DataType
 from deltalake.exceptions import DeltaProtocolError
-from deltalake.schema import StructType, ArrayType, PrimitiveType
+from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
 import os
 
 
@@ -59,11 +59,15 @@ def _get_expr(
     return base_expr.alias(meta.name) if meta else base_expr
 
 
-def _try_get_type(dtype: "DataType") -> "pl.PolarsDataType | None":
+def _get_type(dtype: "DataType") -> "pl.PolarsDataType | None":
     import polars as pl
 
-    if not isinstance(dtype, PrimitiveType):
-        return None
+    if isinstance(dtype, StructType):
+        return pl.Struct([pl.Field(f.name, _get_type(f.type)) for f in dtype.fields])
+    if isinstance(dtype, ArrayType):
+        return pl.List(_get_type(dtype.element_type))
+    if isinstance(dtype, MapType):
+        raise NotImplementedError("MapType not supported in polars")
 
     dtype_str = str(dtype.type)
     if dtype_str == "string":
@@ -112,7 +116,7 @@ def scan_delta_union(delta_table: DeltaTable | Path) -> "pl.LazyFrame":
         parquet_schema = base_ds.limit(0).schema
         selects = []
         for field in all_fields:
-            pl_dtype = _try_get_type(field.type)
+            pl_dtype = _get_type(field.type)
             pn = field.metadata.get("delta.columnMapping.physicalName", field.name)
             if "partition_values" in ac and pn in ac["partition_values"]:
                 part_vl = ac["partition_values"][pn]
@@ -136,4 +140,8 @@ def scan_delta_union(delta_table: DeltaTable | Path) -> "pl.LazyFrame":
 
         ds = base_ds.select(*selects)
         all_ds.append(ds)
+    if len(all_ds) == 0:
+        return pl.DataFrame(
+            data=[], schema={f.name: _get_type(f.type) for f in all_fields}
+        ).lazy()
     return pl.concat(all_ds, how="diagonal_relaxed")
