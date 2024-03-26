@@ -72,7 +72,7 @@ def _get_type(dtype: "DataType") -> "pl.PolarsDataType":
     dtype_str = str(dtype.type)
     if dtype_str == "string":
         return pl.String
-    elif dtype_str == "int":
+    elif dtype_str in ["int", "integer"]:
         return pl.Int32
     elif dtype_str == "long":
         return pl.Int64
