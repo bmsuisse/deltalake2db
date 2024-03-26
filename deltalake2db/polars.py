@@ -96,6 +96,8 @@ def _get_type(dtype: "DataType") -> "pl.PolarsDataType":
         return pl.Int8
     elif dtype_str == "null":
         return pl.Null
+    elif dtype_str == "timestampNtz":
+        return pl.Datetime
     raise NotImplementedError(f"{dtype_str} not supported in polars currently")
 
 

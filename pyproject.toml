@@ -25,6 +25,7 @@ duckdb = "^0.10.0"
 docker = "^7.0.0"
 azure-storage-blob = "^12.19.1"
 python-dotenv = "^1.0.1"
+pandas = "^2.2.1"
 
 [build-system]
 requires = ["poetry-core"]
