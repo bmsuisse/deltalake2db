@@ -59,7 +59,7 @@ def _get_expr(
     return base_expr.alias(meta.name) if meta else base_expr
 
 
-def _get_type(dtype: "DataType") -> "pl.PolarsDataType | None":
+def _get_type(dtype: "DataType") -> "pl.PolarsDataType":
     import polars as pl
 
     if isinstance(dtype, StructType):
@@ -88,7 +88,7 @@ def _get_type(dtype: "DataType") -> "pl.PolarsDataType | None":
         return pl.Datetime
     elif dtype_str == "binary":
         return pl.Binary
-    elif dtype_str == "decimal":
+    elif dtype_str.startswith("decimal"):
         return pl.Decimal
     elif dtype_str == "short":
         return pl.Int16
@@ -96,7 +96,7 @@ def _get_type(dtype: "DataType") -> "pl.PolarsDataType | None":
         return pl.Int8
     elif dtype_str == "null":
         return pl.Null
-    return None
+    raise NotImplementedError(f"{dtype_str} not supported in polars currently")
 
 
 def scan_delta_union(delta_table: DeltaTable | Path) -> "pl.LazyFrame":
