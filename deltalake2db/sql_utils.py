@@ -4,7 +4,7 @@ import sqlglot.expressions as ex
 
 
 def read_parquet(
-    path: str | Path | list[Path]| list[str] | ex.Expression | list[ex.Expression],
+    path: str | Path | list[Path] | list[str] | ex.Expression | list[ex.Expression],
 ) -> ex.Expression:
     if isinstance(path, list):
         return ex.func(
@@ -42,16 +42,14 @@ def union(selects: Sequence[ex.Expression], *, distinct: bool) -> ex.Expression:
 def filter_via_dict(conditions: dict[str, Any] | None):
     if not conditions or len(conditions) == 0:
         return None
-    return ex.and_(
-        *[
-            (
-                ex.EQ(this=ex.column(k, quoted=True), expression=ex.convert(v))
-                if v is not None
-                else ex.Is(this=ex.column(k, quoted=True), expression=ex.Null())
-            )
-            for k, v in conditions.items()
-        ]
-    )
+    return [
+        (
+            ex.EQ(this=ex.column(k, quoted=True), expression=ex.convert(v))
+            if v is not None
+            else ex.Is(this=ex.column(k, quoted=True), expression=ex.Null())
+        )
+        for k, v in conditions.items()
+    ]
 
 
 T = TypeVar("T", bound=ex.Query)

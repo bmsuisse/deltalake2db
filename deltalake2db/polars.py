@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from deltalake2db.filter_by_meta import _can_filter
+
 if TYPE_CHECKING:
     import polars as pl
 from deltalake import DeltaTable, Field, DataType
@@ -101,7 +103,13 @@ def _get_type(dtype: "DataType") -> "pl.PolarsDataType":
     raise NotImplementedError(f"{dtype_str} not supported in polars currently")
 
 
-def scan_delta_union(delta_table: DeltaTable | Path) -> "pl.LazyFrame":
+def _filter_cond(f: "pl.LazyFrame", conditions: dict) -> "pl.LazyFrame":
+    return f.filter(**conditions)
+
+
+def scan_delta_union(
+    delta_table: DeltaTable | Path, conditions: dict | None = None
+) -> "pl.LazyFrame":
     import polars as pl
     from .protocol_check import check_is_supported
 
@@ -111,6 +119,8 @@ def scan_delta_union(delta_table: DeltaTable | Path) -> "pl.LazyFrame":
     all_ds = []
     all_fields = delta_table.schema().fields
     for ac in delta_table.get_add_actions(flatten=True).to_pylist():
+        if conditions is not None and _can_filter(ac, conditions):
+            continue
         fullpath = os.path.join(delta_table.table_uri, ac["path"])
         base_ds = pl.scan_parquet(
             fullpath, storage_options=delta_table._storage_options
@@ -139,8 +149,13 @@ def scan_delta_union(delta_table: DeltaTable | Path) -> "pl.LazyFrame":
                 in parquet_schema
             ):
                 selects.append(_get_expr(None, field.type, field))
-
-        ds = base_ds.select(*selects)
+            else:
+                selects.append(pl.lit(None, pl_dtype).alias(field.name))
+        ds = (
+            _filter_cond(base_ds.select(*selects), conditions)
+            if conditions is not None
+            else base_ds.select(*selects)
+        )
         all_ds.append(ds)
     if len(all_ds) == 0:
         return pl.DataFrame(

@@ -88,6 +88,28 @@ def test_strange_cols():
     assert "time stämp" in col_names
 
 
+def test_filter_number():
+    dt = DeltaTable("tests/data/user")
+
+    from deltalake2db import polars_scan_delta
+
+    df = polars_scan_delta(dt, conditions={"Age": 23.0})
+    res = df.collect().to_dicts()
+    assert len(res) == 1
+    assert res[0]["FirstName"] == "Peter"
+
+
+def test_filter_name():
+    dt = DeltaTable("tests/data/user")
+
+    from deltalake2db import polars_scan_delta
+
+    df = polars_scan_delta(dt, conditions={"FirstName": "Peter"})
+    res = df.collect().to_dicts()
+    assert len(res) == 1
+    assert res[0]["FirstName"] == "Peter"
+
+
 @pytest.mark.skip(reason="Polars reads null structs as structs, so no luck")
 def test_empty_struct():
     dt = DeltaTable("tests/data/faker2")

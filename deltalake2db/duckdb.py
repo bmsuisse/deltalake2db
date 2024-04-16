@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Callable
 from deltalake import DataType, Field
 from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
 import sqlglot.expressions as ex
+from deltalake2db.filter_by_meta import _can_filter
 import deltalake2db.sql_utils as squ
 
 if TYPE_CHECKING:
@@ -235,8 +236,10 @@ def create_view_for_delta(
     delta_table: "DeltaTable | Path",
     view_name: str,
     overwrite=True,
+    *,
+    conditions: dict | None = None,
 ):
-    sql = get_sql_for_delta(delta_table, duck_con=con)
+    sql = get_sql_for_delta(delta_table, duck_con=con, conditions=conditions)
     assert '"' not in view_name
     if overwrite:
         con.execute(f'create or replace view "{view_name}" as {sql}')
@@ -283,6 +286,12 @@ def get_sql_for_delta_expr(
     try:
 
         for ac in dt.get_add_actions(flatten=True).to_pylist():
+            if (
+                conditions is not None
+                and isinstance(conditions, dict)
+                and _can_filter(ac, conditions)
+            ):
+                continue
             if action_filter and not action_filter(ac):
                 continue
             fullpath = dt.table_uri.removesuffix("/") + "/" + ac["path"]
