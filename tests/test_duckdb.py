@@ -51,7 +51,38 @@ def test_strange_cols():
         con.execute("select * from delta_table")
         col_names = [c[0] for c in con.description]
         assert "time stämp" in col_names
-        print(con.fetchall())
+        print("\n")
+        print(con.df())
+
+
+def test_filter_number():
+    dt = DeltaTable("tests/data/user")
+
+    from deltalake2db import duckdb_create_view_for_delta
+
+    with duckdb.connect() as con:
+        duckdb_create_view_for_delta(con, dt, "delta_table", conditions={"Age": 23.0})
+        con.execute("select FirstName from delta_table")
+        col_names = [c[0] for c in con.description]
+        names = con.fetchall()
+        assert len(names) == 1
+        assert names[0][0] == "Peter"
+
+
+def test_filter_name():
+    dt = DeltaTable("tests/data/user")
+
+    from deltalake2db import duckdb_create_view_for_delta
+
+    with duckdb.connect() as con:
+        duckdb_create_view_for_delta(
+            con, dt, "delta_table", conditions={"FirstName": "Peter"}
+        )
+        con.execute("select FirstName from delta_table")
+        col_names = [c[0] for c in con.description]
+        names = con.fetchall()
+        assert len(names) == 1
+        assert names[0][0] == "Peter"
 
 
 def test_user_empty():
