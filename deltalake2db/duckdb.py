@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Callable
 from deltalake import DataType, Field
 from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
 import sqlglot.expressions as ex
+from deltalake2db.azure_helper import apply_azure_chain
 from deltalake2db.filter_by_meta import _can_filter
 import deltalake2db.sql_utils as squ
 
@@ -192,10 +193,12 @@ ACCOUNT_NAME '{an}'
             )
         elif "account_name" in storage_options:
             an = storage_options["account_name"]
+            chain = storage_options.get("chain", "default")
             con.execute(
                 f"""CREATE SECRET {secrect_name} (
 TYPE AZURE,
 PROVIDER CREDENTIAL_CHAIN,
+CHAIN '{chain}',
 ACCOUNT_NAME '{an}'
 );"""
             )
@@ -233,13 +236,19 @@ type_map = {
 
 def create_view_for_delta(
     con: "duckdb.DuckDBPyConnection",
-    delta_table: "DeltaTable | Path",
+    delta_table: "DeltaTable | Path | str",
     view_name: str,
     overwrite=True,
     *,
     conditions: dict | None = None,
+    storage_options: dict | None = None,
 ):
-    sql = get_sql_for_delta(delta_table, duck_con=con, conditions=conditions)
+    sql = get_sql_for_delta(
+        delta_table,
+        duck_con=con,
+        conditions=conditions,
+        storage_options=storage_options,
+    )
     assert '"' not in view_name
     if overwrite:
         con.execute(f'create or replace view "{view_name}" as {sql}')
@@ -248,7 +257,7 @@ def create_view_for_delta(
 
 
 def get_sql_for_delta_expr(
-    dt: "DeltaTable | Path",
+    dt: "DeltaTable | Path | str",
     conditions: dict | None | Sequence[ex.Expression] | ex.Expression = None,
     select: Sequence[str | ex.Expression] | None = None,
     distinct=False,
@@ -257,13 +266,16 @@ def get_sql_for_delta_expr(
     sql_prefix="delta",
     delta_table_cte_name: str | None = None,
     duck_con: "duckdb.DuckDBPyConnection | None" = None,
+    storage_options: dict | None = None,
 ) -> ex.Select:
     from .sql_utils import read_parquet, union, filter_via_dict
 
-    if isinstance(dt, Path):
+    if isinstance(dt, Path) or isinstance(dt, str):
         from deltalake import DeltaTable
 
-        dt = DeltaTable(dt)
+        storage_options_for_delta = apply_azure_chain(storage_options)
+
+        dt = DeltaTable(dt, storage_options=storage_options_for_delta)
     from .protocol_check import check_is_supported
 
     check_is_supported(dt)
@@ -281,7 +293,7 @@ def get_sql_for_delta_expr(
         duck_con = duckdb.connect()
         owns_con = True
     if dt.table_uri.startswith("az://") or dt.table_uri.startswith("abfss://"):
-        apply_storage_options(duck_con, dt._storage_options, type="azure")  # type: ignore
+        apply_storage_options(duck_con, storage_options or dt._storage_options, type="azure")  # type: ignore
 
     try:
 
@@ -392,6 +404,7 @@ def get_sql_for_delta(
     cte_wrap_name: str | None = None,
     sql_prefix="delta",
     duck_con: "duckdb.DuckDBPyConnection | None" = None,
+    storage_options: dict | None = None,
 ) -> str:
     expr = get_sql_for_delta_expr(
         dt=dt,
@@ -402,6 +415,7 @@ def get_sql_for_delta(
         sql_prefix=sql_prefix,
         cte_wrap_name=cte_wrap_name,
         duck_con=duck_con,
+        storage_options=storage_options,
     )
     if cte_wrap_name:
         suffix_sql = ex.select(ex.Star()).from_(cte_wrap_name).sql(dialect="duckdb")

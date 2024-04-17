@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+from deltalake2db.azure_helper import apply_azure_chain
 from deltalake2db.filter_by_meta import _can_filter
 
 if TYPE_CHECKING:
@@ -137,13 +138,16 @@ def _filter_cond(f: "pl.LazyFrame", conditions: dict) -> "pl.LazyFrame":
 
 
 def scan_delta_union(
-    delta_table: DeltaTable | Path, conditions: dict | None = None
+    delta_table: DeltaTable | Path | str,
+    conditions: dict | None = None,
+    storage_options: dict | None = None,
 ) -> "pl.LazyFrame":
     import polars as pl
     from .protocol_check import check_is_supported
 
-    if isinstance(delta_table, Path):
-        delta_table = DeltaTable(delta_table)
+    if isinstance(delta_table, Path) or isinstance(delta_table, str):
+        storage_options_for_delta = apply_azure_chain(storage_options)
+        delta_table = DeltaTable(delta_table, storage_options=storage_options_for_delta)
     check_is_supported(delta_table)
     all_ds = []
     all_fields = delta_table.schema().fields
