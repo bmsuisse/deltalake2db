@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from deltalake2db.filter_by_meta import _can_filter
 
@@ -12,9 +12,19 @@ import os
 
 
 def _get_expr(
-    base_expr: "pl.Expr|None", dtype: "DataType", meta: Field | None
+    base_expr: "pl.Expr|None",
+    dtype: "DataType",
+    meta: Field | None,
+    parquet_field: "pl.PolarsDataType | None",
 ) -> "pl.Expr":
     import polars as pl
+
+    if parquet_field is None:
+        return (
+            pl.lit(None, _get_type(dtype)).alias(meta.name)
+            if meta
+            else pl.lit(None, _get_type(dtype))
+        )
 
     pn = (
         meta.metadata.get("delta.columnMapping.physicalName", meta.name)
@@ -25,6 +35,15 @@ def _get_expr(
         assert pn is not None
         base_expr = pl.col(pn)
     if isinstance(dtype, StructType):
+
+        def _get_sub_type(name: str) -> "pl.PolarsDataType| None":
+            if parquet_field is None:
+                return None
+            assert isinstance(parquet_field, pl.Struct)
+            for f in parquet_field.fields:
+                if f.name == name:
+                    return f.dtype
+            return None
 
         struct_vl = (
             pl.when(base_expr.is_null())
@@ -40,6 +59,11 @@ def _get_expr(
                             ),
                             subfield.type,
                             subfield,
+                            _get_sub_type(
+                                subfield.metadata.get(
+                                    "delta.columnMapping.physicalName", subfield.name
+                                )
+                            ),
                         )
                         for subfield in dtype.fields
                     ]
@@ -53,7 +77,12 @@ def _get_expr(
             .then(pl.lit(None))
             .otherwise(
                 base_expr.list.eval(
-                    _get_expr(pl.element(), dtype=dtype.element_type, meta=meta)
+                    _get_expr(
+                        pl.element(),
+                        dtype=dtype.element_type,
+                        meta=meta,
+                        parquet_field=cast(pl.List, parquet_field).inner,
+                    )
                 )
             )
         )
@@ -148,7 +177,18 @@ def scan_delta_union(
                 field.metadata.get("delta.columnMapping.physicalName", field.name)
                 in parquet_schema
             ):
-                selects.append(_get_expr(None, field.type, field))
+                selects.append(
+                    _get_expr(
+                        None,
+                        field.type,
+                        field,
+                        parquet_schema.get(
+                            field.metadata.get(
+                                "delta.columnMapping.physicalName", field.name
+                            )
+                        ),
+                    )
+                )
             else:
                 selects.append(pl.lit(None, pl_dtype).alias(field.name))
         ds = (
