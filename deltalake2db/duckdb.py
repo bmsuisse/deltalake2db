@@ -262,7 +262,7 @@ def get_sql_for_delta_expr(
     action_filter: Union[Callable[[dict], bool], None] = None,
     sql_prefix="delta",
     delta_table_cte_name: Union[str, None] = None,
-    duck_con: Union["duckdb.DuckDBPyConnection", None] = None,
+    duck_con: "Union[duckdb.DuckDBPyConnection, None]" = None,
     storage_options: Optional[dict] = None,
 ) -> ex.Select:
     from .sql_utils import read_parquet, union, filter_via_dict
@@ -400,7 +400,7 @@ def get_sql_for_delta(
     action_filter: Union[Callable[[dict], bool], None] = None,
     cte_wrap_name: Union[str, None] = None,
     sql_prefix="delta",
-    duck_con: Union["duckdb.DuckDBPyConnection", None] = None,
+    duck_con: "Union[duckdb.DuckDBPyConnection, None]" = None,
     storage_options: Optional[dict] = None,
 ) -> str:
     expr = get_sql_for_delta_expr(
