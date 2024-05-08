@@ -2,7 +2,6 @@ from collections import OrderedDict
 from deltalake import DeltaTable
 import duckdb
 import polars as pl
-import pytest
 
 
 def test_col_mapping():
@@ -11,7 +10,6 @@ def test_col_mapping():
     from deltalake2db import get_sql_for_delta
 
     with duckdb.connect() as con:
-
         sql = get_sql_for_delta(dt, duck_con=con)
         print(sql)
         con.execute("create view delta_table as " + sql)
@@ -142,7 +140,6 @@ def test_empty_struct():
     from deltalake2db import get_sql_for_delta
 
     with duckdb.connect() as con:
-
         sql = get_sql_for_delta(dt, duck_con=con)
         print(sql)
         con.execute("create view delta_table as " + sql)

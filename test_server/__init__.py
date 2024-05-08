@@ -2,7 +2,7 @@ from pathlib import Path
 import docker
 from docker.models.containers import Container
 from time import sleep
-from typing import cast
+from typing import Optional, cast
 import docker.errors
 import os
 
@@ -47,7 +47,7 @@ def start_azurite() -> Container:
     client = (
         docker.from_env()
     )  # code taken from https://github.com/fsspec/adlfs/blob/main/adlfs/tests/conftest.py#L72
-    azurite_server: Container | None = None
+    azurite_server: Optional[Container] = None
     try:
         m = cast(Container, client.containers.get("test4azurite"))
         if m.status == "running":
@@ -55,7 +55,7 @@ def start_azurite() -> Container:
             return m
         else:
             azurite_server = m
-    except docker.errors.NotFound as err:
+    except docker.errors.NotFound:
         pass
 
     if azurite_server is None:

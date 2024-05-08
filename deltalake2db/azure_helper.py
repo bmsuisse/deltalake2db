@@ -1,4 +1,7 @@
-def apply_azure_chain(storage_options: dict | None):
+from typing import Optional
+
+
+def apply_azure_chain(storage_options: Optional[dict]):
     # support for "Chain" as in duckdb: https://duckdb.org/docs/extensions/azure#credential_chain-provider
     if storage_options is None:
         return None

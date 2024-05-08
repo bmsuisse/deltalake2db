@@ -8,7 +8,6 @@ def _can_filter(action: dict, conditions: dict):
     # min.COLNAME
     # max.COLNAME
     try:
-
         for key, value in conditions.items():
             part_vl = action.get("partition." + key, None)
             if part_vl is not None and part_vl != value:
