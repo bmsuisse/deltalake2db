@@ -1,7 +1,6 @@
 from collections.abc import Sequence
-import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Optional, Union
 from deltalake import DataType, Field
 from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
 import sqlglot.expressions as ex
@@ -14,7 +13,7 @@ if TYPE_CHECKING:
     import duckdb
 
 
-def _cast(s: ex.Expression, t: ex.DataType.Type | None):
+def _cast(s: ex.Expression, t: Optional[ex.DataType.Type]):
     if t is None:
         return s
     return ex.cast(s, t)
@@ -56,7 +55,7 @@ def _dummy_expr(
 def _get_expr(
     base_expr: "ex.Expression|None",
     dtype: "DataType",
-    meta: Field | None,
+    meta: Optional[Field],
     alias=True,
     *,
     counter: int = 0,
@@ -101,7 +100,6 @@ def _get_expr(
             return struct_expr.as_(meta.name)
         return struct_expr
     elif isinstance(dtype, ArrayType):
-
         vl = squ.list_transform(
             "x_" + str(counter),
             base_expr,
@@ -121,7 +119,6 @@ def _get_expr(
 
 
 def load_install_azure(con: "duckdb.DuckDBPyConnection"):
-
     with con.cursor() as cur:
         cur.execute(
             "select loaded, installed from duckdb_extensions() where extension_name='azure' "
@@ -236,12 +233,12 @@ type_map = {
 
 def create_view_for_delta(
     con: "duckdb.DuckDBPyConnection",
-    delta_table: "DeltaTable | Path | str",
+    delta_table: "Union[DeltaTable , Path , str]",
     view_name: str,
     overwrite=True,
     *,
-    conditions: dict | None = None,
-    storage_options: dict | None = None,
+    conditions: Optional[dict] = None,
+    storage_options: Optional[dict] = None,
 ):
     sql = get_sql_for_delta(
         delta_table,
@@ -257,16 +254,16 @@ def create_view_for_delta(
 
 
 def get_sql_for_delta_expr(
-    dt: "DeltaTable | Path | str",
-    conditions: dict | None | Sequence[ex.Expression] | ex.Expression = None,
-    select: Sequence[str | ex.Expression] | None = None,
+    dt: "Union[DeltaTable,Path , str]",
+    conditions: Union[Optional[dict], Sequence[ex.Expression], ex.Expression] = None,
+    select: Union[Sequence[Union[str, ex.Expression]], None] = None,
     distinct=False,
-    cte_wrap_name: str | None = None,
-    action_filter: Callable[[dict], bool] | None = None,
+    cte_wrap_name: Union[str, None] = None,
+    action_filter: Union[Callable[[dict], bool], None] = None,
     sql_prefix="delta",
-    delta_table_cte_name: str | None = None,
-    duck_con: "duckdb.DuckDBPyConnection | None" = None,
-    storage_options: dict | None = None,
+    delta_table_cte_name: Union[str, None] = None,
+    duck_con: Union["duckdb.DuckDBPyConnection", None] = None,
+    storage_options: Optional[dict] = None,
 ) -> ex.Select:
     from .sql_utils import read_parquet, union, filter_via_dict
 
@@ -293,10 +290,11 @@ def get_sql_for_delta_expr(
         duck_con = duckdb.connect()
         owns_con = True
     if dt.table_uri.startswith("az://") or dt.table_uri.startswith("abfss://"):
-        apply_storage_options(duck_con, storage_options or dt._storage_options, type="azure")  # type: ignore
+        apply_storage_options(
+            duck_con, storage_options or dt._storage_options or {}, type="azure"
+        )  # type: ignore
 
     try:
-
         for ac in dt.get_add_actions(flatten=True).to_pylist():
             if (
                 conditions is not None
@@ -345,7 +343,6 @@ def get_sql_for_delta_expr(
                         )
                     )
                 elif phys_name in cols:
-
                     cols_sql.append(
                         _get_expr(ex.column(phys_name, quoted=True), field.type, field)
                     )
@@ -396,15 +393,15 @@ def get_sql_for_delta_expr(
 
 
 def get_sql_for_delta(
-    dt: "DeltaTable | Path",
-    conditions: dict | None = None,
-    select: list[str] | None = None,
+    dt: "Union[DeltaTable, Path, str]",
+    conditions: Optional[dict] = None,
+    select: Union[list[str], None] = None,
     distinct=False,
-    action_filter: Callable[[dict], bool] | None = None,
-    cte_wrap_name: str | None = None,
+    action_filter: Union[Callable[[dict], bool], None] = None,
+    cte_wrap_name: Union[str, None] = None,
     sql_prefix="delta",
-    duck_con: "duckdb.DuckDBPyConnection | None" = None,
-    storage_options: dict | None = None,
+    duck_con: Union["duckdb.DuckDBPyConnection", None] = None,
+    storage_options: Optional[dict] = None,
 ) -> str:
     expr = get_sql_for_delta_expr(
         dt=dt,

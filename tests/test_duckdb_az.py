@@ -48,7 +48,6 @@ def test_col_mapping(storage_options):
     from deltalake2db import get_sql_for_delta
 
     with duckdb.connect() as con:
-
         sql = get_sql_for_delta(dt, duck_con=con)
         sql = get_sql_for_delta(
             dt, duck_con=con
@@ -90,7 +89,6 @@ def test_empty_struct(storage_options):
     from deltalake2db import get_sql_for_delta
 
     with duckdb.connect() as con:
-
         sql = get_sql_for_delta(dt, duck_con=con)
         print(sql)
         con.execute("create view delta_table as " + sql)

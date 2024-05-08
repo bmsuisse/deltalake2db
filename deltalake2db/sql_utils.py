@@ -1,10 +1,11 @@
 from pathlib import Path
-from typing import Sequence, Any, TypeVar
+from typing import Optional, Sequence, Any, TypeVar
 import sqlglot.expressions as ex
+from typing import Union
 
 
 def read_parquet(
-    path: str | Path | list[Path] | list[str] | ex.Expression | list[ex.Expression],
+    path: Union[str, Path, list[Path], list[str], ex.Expression, list[ex.Expression]],
 ) -> ex.Expression:
     if isinstance(path, list):
         return ex.func(
@@ -39,7 +40,7 @@ def union(selects: Sequence[ex.Expression], *, distinct: bool) -> ex.Expression:
         )
 
 
-def filter_via_dict(conditions: dict[str, Any] | None):
+def filter_via_dict(conditions: Optional[dict[str, Any]]):
     if not conditions or len(conditions) == 0:
         return None
     return [
@@ -72,7 +73,9 @@ def struct(items: dict[str, ex.Expression]) -> ex.Struct:
 
 
 def list_transform(
-    param_names: list[str] | str, list_expr: ex.Expression, value_expr: ex.Expression
+    param_names: Union[list[str], str],
+    list_expr: ex.Expression,
+    value_expr: ex.Expression,
 ) -> ex.Expression:
     if isinstance(param_names, str):
         param_names = [param_names]

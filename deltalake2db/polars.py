@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, Union, Optional
 
 from deltalake2db.azure_helper import apply_azure_chain
 from deltalake2db.filter_by_meta import _can_filter
@@ -7,16 +7,15 @@ from deltalake2db.filter_by_meta import _can_filter
 if TYPE_CHECKING:
     import polars as pl
 from deltalake import DeltaTable, Field, DataType
-from deltalake.exceptions import DeltaProtocolError
-from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
+from deltalake.schema import StructType, ArrayType, MapType
 import os
 
 
 def _get_expr(
-    base_expr: "pl.Expr|None",
+    base_expr: "Union[pl.Expr,None]",
     dtype: "DataType",
-    meta: Field | None,
-    parquet_field: "pl.PolarsDataType | None",
+    meta: Optional[Field],
+    parquet_field: "Optional[pl.PolarsDataType]",
 ) -> "pl.Expr":
     import polars as pl
 
@@ -138,9 +137,9 @@ def _filter_cond(f: "pl.LazyFrame", conditions: dict) -> "pl.LazyFrame":
 
 
 def scan_delta_union(
-    delta_table: DeltaTable | Path | str,
-    conditions: dict | None = None,
-    storage_options: dict | None = None,
+    delta_table: Union[DeltaTable, Path, str],
+    conditions: Optional[dict] = None,
+    storage_options: Optional[dict] = None,
 ) -> "pl.LazyFrame":
     import polars as pl
     from .protocol_check import check_is_supported
