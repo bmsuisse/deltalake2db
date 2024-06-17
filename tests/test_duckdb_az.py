@@ -83,6 +83,7 @@ def test_col_mapping(storage_options):
 def test_empty_struct(storage_options):
     # >>> duckdb.execute("""Select { 'lat': 1 } as tester union all select Null""").fetchall()
     import pyarrow as pa
+    import pyarrow.compute as pc
 
     dt = DeltaTable("az://testlakedb/td/delta/fake", storage_options=storage_options)
 
@@ -96,7 +97,7 @@ def test_empty_struct(storage_options):
         df = con.execute("select * from delta_table").fetch_arrow_table()
         print(df)
         mc = (
-            df.filter(pa.compute.field("new_name") == "Hans Heiri")
+            df.filter(pc.field("new_name") == "Hans Heiri")
             .select(["main_coord"])
             .to_pylist()
         )

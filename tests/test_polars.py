@@ -98,6 +98,10 @@ def test_filter_number():
     assert len(res) == 1
     assert res[0]["FirstName"] == "Peter"
 
+    df2 = polars_scan_delta(dt, conditions={"Age": 500})
+
+    assert df.schema == df2.schema, "Schema does not match"
+
 
 def test_filter_name():
     dt = DeltaTable("tests/data/user")

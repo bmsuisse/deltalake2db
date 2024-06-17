@@ -62,9 +62,20 @@ def test_filter_number():
         duckdb_create_view_for_delta(con, dt, "delta_table", conditions={"Age": 23.0})
         con.execute("select FirstName from delta_table")
         col_names = [c[0] for c in con.description]
+        assert col_names == ["FirstName"]
         names = con.fetchall()
         assert len(names) == 1
         assert names[0][0] == "Peter"
+    with duckdb.connect() as con:
+        duckdb_create_view_for_delta(con, dt, "delta_table_1", conditions={"Age": 23.0})
+        con.execute("select * from delta_table_1")
+        col_types_1 = [c[1] for c in con.description]
+        duckdb_create_view_for_delta(
+            con, dt, "delta_table_2", conditions={"Age": 500.0}
+        )
+        con.execute("select * from delta_table_2")
+        col_types_2 = [c[1] for c in con.description]
+        assert col_types_1 == col_types_2
 
 
 def test_filter_name():
