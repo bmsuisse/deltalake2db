@@ -111,14 +111,15 @@ def test_filter_name():
 
 
 def test_schema():
-    dt = DeltaTable("tests/data/user")
-
     from deltalake2db import polars_scan_delta, get_polars_schema
 
-    df = polars_scan_delta(dt)
-    schema = get_polars_schema(dt)
+    for tbl in ["user", "faker2", "user_empty"]:
+        dt = DeltaTable("tests/data/" + tbl)
 
-    assert df.schema == schema
+        df = polars_scan_delta(dt)
+        schema = get_polars_schema(dt)
+
+        assert df.schema == schema, f"Schema for {tbl} does not match"
 
 
 @pytest.mark.skip(reason="Polars reads null structs as structs, so no luck")
