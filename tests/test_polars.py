@@ -110,6 +110,17 @@ def test_filter_name():
     assert res[0]["FirstName"] == "Peter"
 
 
+def test_schema():
+    dt = DeltaTable("tests/data/user")
+
+    from deltalake2db import polars_scan_delta, get_polars_schema
+
+    df = polars_scan_delta(dt)
+    schema = get_polars_schema(dt)
+
+    assert df.schema == schema
+
+
 @pytest.mark.skip(reason="Polars reads null structs as structs, so no luck")
 def test_empty_struct():
     dt = DeltaTable("tests/data/faker2")

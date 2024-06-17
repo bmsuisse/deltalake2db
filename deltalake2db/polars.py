@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     import polars as pl
 from deltalake import DeltaTable, Field, DataType
 from deltalake.schema import StructType, ArrayType, MapType
+from collections import OrderedDict
 import os
 
 
@@ -134,6 +135,20 @@ def _get_type(dtype: "DataType") -> "pl.PolarsDataType":
 
 def _filter_cond(f: "pl.LazyFrame", conditions: dict) -> "pl.LazyFrame":
     return f.filter(**conditions)
+
+
+def get_polars_schema(
+    delta_table: Union[DeltaTable, Path, str],
+) -> "OrderedDict[str, pl.PolarsDataType]":
+    from .protocol_check import check_is_supported
+
+    if isinstance(delta_table, Path) or isinstance(delta_table, str):
+        delta_table = DeltaTable(delta_table)
+    check_is_supported(delta_table)
+    res_dict = OrderedDict()
+    for f in delta_table.schema().fields:
+        res_dict[f.name] = _get_type(f.type)
+    return res_dict
 
 
 def scan_delta_union(
