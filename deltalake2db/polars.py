@@ -121,7 +121,8 @@ def _get_type(dtype: "DataType") -> "pl.PolarsDataType":
     elif dtype_str == "binary":
         return pl.Binary
     elif dtype_str.startswith("decimal"):
-        return pl.Decimal
+        precision, scale = dtype_str.split("(")[1].split(")")[0].split(",")
+        return pl.Decimal(int(precision), int(scale))
     elif dtype_str == "short":
         return pl.Int16
     elif dtype == "byte":
