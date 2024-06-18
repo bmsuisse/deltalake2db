@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     import duckdb
 
 
-def _cast(s: ex.Expression, t: Optional[ex.DataType.Type]):
+def _cast(s: ex.Expression, t: Optional[ex.DATA_TYPE]):
     if t is None:
         return s
     return ex.cast(s, t)
@@ -25,7 +25,10 @@ def _dummy_expr(
     from deltalake.schema import PrimitiveType
 
     if isinstance(field_type, PrimitiveType):
-        cast_as = type_map.get(field_type.type)
+        if str(field_type).startswith("decimal("):
+            cast_as = ex.DataType.build(str(field_type))
+        else:
+            cast_as = type_map.get(field_type.type)
         return _cast(ex.Null(), cast_as)
     elif isinstance(field_type, StructType):
         return squ.struct(
@@ -227,6 +230,7 @@ type_map = {
     "short": ex.DataType.Type.SMALLINT,
     "binary": ex.DataType.Type.BINARY,
     "timestampNtz": ex.DataType.Type.TIMESTAMP,
+    "timestamp_ntz": ex.DataType.Type.TIMESTAMP,
     "decimal": ex.DataType.Type.DECIMAL,
 }
 
@@ -316,8 +320,12 @@ def get_sql_for_delta_expr(
                 )
 
                 cast_as = None
+
                 if isinstance(field.type, PrimitiveType):
-                    cast_as = type_map.get(field.type.type)
+                    if str(field.type).startswith("decimal("):
+                        cast_as = ex.DataType.build(str(field.type))
+                    else:
+                        cast_as = type_map.get(field.type.type)
                 if "partition_values" in ac and phys_name in ac["partition_values"]:
                     cols_sql.append(
                         _cast(
@@ -349,7 +357,9 @@ def get_sql_for_delta_expr(
                 else:
                     cols_sql.append(ex.Null().as_(field_name))
 
-            select_pq = ex.select(*cols_sql).from_(
+            select_pq = ex.select(
+                *cols_sql
+            ).from_(
                 read_parquet(ex.convert(fullpath))
             )  # "SELECT " + ", ".join(cols_sql) + " FROM read_parquet('" + fullpath + "')"
             file_selects.append(select_pq)

@@ -121,7 +121,8 @@ def _get_type(dtype: "DataType") -> "pl.PolarsDataType":
     elif dtype_str == "binary":
         return pl.Binary
     elif dtype_str.startswith("decimal"):
-        return pl.Decimal
+        precision, scale = dtype_str.split("(")[1].split(")")[0].split(",")
+        return pl.Decimal(int(precision), int(scale))
     elif dtype_str == "short":
         return pl.Int16
     elif dtype == "byte":
@@ -172,7 +173,7 @@ def scan_delta_union(
         base_ds = pl.scan_parquet(
             fullpath, storage_options=delta_table._storage_options
         )
-        parquet_schema = base_ds.limit(0).schema
+        parquet_schema = base_ds.limit(0).collect_schema()
         selects = []
         for field in all_fields:
             pl_dtype = _get_type(field.type)
