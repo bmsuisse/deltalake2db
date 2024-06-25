@@ -22,6 +22,7 @@ def test_get_storage_options_object_store():
     assert ".blob.core" not in new_path
     assert ".dfs.core" not in new_path
     assert creds["token"] == "fake_token"
+    assert creds["account_name"] == "accountnamethatslong"
     new_path, creds = get_storage_options_object_store(
         "abfss://accountnamethatslong.df.core.windows.net/testlakedb/td/delta/fake",
         {"chain": "default"},
@@ -32,3 +33,4 @@ def test_get_storage_options_object_store():
     assert ".blob.core" not in new_path
     assert ".dfs.core" not in new_path
     assert creds["token"] == "fake_token"
+    assert creds["account_name"] == "accountnamethatslong"

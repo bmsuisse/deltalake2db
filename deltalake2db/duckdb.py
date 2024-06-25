@@ -4,7 +4,9 @@ from typing import TYPE_CHECKING, Callable, Optional, Union
 from deltalake import DataType, Field
 from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
 import sqlglot.expressions as ex
-from deltalake2db.azure_helper import get_storage_options_object_store
+from deltalake2db.azure_helper import (
+    get_storage_options_object_store,
+)
 from deltalake2db.filter_by_meta import _can_filter
 import deltalake2db.sql_utils as squ
 
@@ -141,6 +143,7 @@ def apply_storage_options(
     storage_options: dict,
     *,
     type="azure",
+    account_name_path: Optional[str] = None,
 ):
     if type in ["az", "abfs", "abfss"]:
         type = "azure"
@@ -153,59 +156,55 @@ def apply_storage_options(
         se_names = [s[0] for s in secrets]
     if len(se_names) > 0:  # for now, only one secret is supported in DuckDB, it seems
         return
-    secrect_name = storage_options.get(
+    account_name = storage_options.get(
         "account_name",
-        storage_options.get(
-            "azure_storage_account_name",
-            "_emulator" if storage_options.get("use_emulator", "0") == "True" else "",
-        ),
+        storage_options.get("azure_storage_account_name", account_name_path),
     )
+    use_emulator = storage_options.get("use_emulator", "0") in ["1", "True", "true"]
+    secret_name = account_name or ("_emulator" if use_emulator else "")
 
-    if secrect_name not in se_names:
+    if secret_name not in se_names:
         if "connection_string" in storage_options:
             cr = storage_options["connection_string"]
             con.execute(
-                f"""CREATE SECRET {secrect_name} (
+                f"""CREATE SECRET {secret_name} (
 TYPE AZURE,
 CONNECTION_STRING '{cr}'
 );"""
             )
-        elif "account_name" in storage_options and "account_key" in storage_options:
-            an = storage_options["account_name"]
+        elif account_name is not None and "account_key" in storage_options:
             ak = storage_options["account_key"]
-            conn_str = f"AccountName={an};AccountKey={ak};BlobEndpoint=https://{an}.blob.core.windows.net;"
+            conn_str = f"AccountName={account_name};AccountKey={ak};BlobEndpoint=https://{account_name}.blob.core.windows.net;"
             con.execute(
-                f"""CREATE SECRET {secrect_name} (
+                f"""CREATE SECRET {secret_name} (
 TYPE AZURE,
 CONNECTION_STRING '{conn_str}',
-ACCOUNT_NAME '{an}'
+ACCOUNT_NAME '{account_name}'
 );"""
             )
-        elif "account_name" in storage_options and "sas_token" in storage_options:
-            an = storage_options["account_name"]
+        elif account_name is not None and "sas_token" in storage_options:
             sas_token = storage_options["sas_token"]
-            conn_str = f"BlobEndpoint=https://{an}.blob.core.windows.net;SharedAccessSignature={sas_token}"
+            conn_str = f"BlobEndpoint=https://{account_name}.blob.core.windows.net;SharedAccessSignature={sas_token}"
             con.execute(
-                f"""CREATE SECRET {secrect_name} (
+                f"""CREATE SECRET {secret_name} (
 TYPE AZURE,
 CONNECTION_STRING '{conn_str}',
-ACCOUNT_NAME '{an}'
+ACCOUNT_NAME '{account_name}'
 );"""
             )
-        elif "account_name" in storage_options:
-            an = storage_options["account_name"]
+        elif account_name is not None:
             chain = storage_options.get("chain", "default")
             con.execute(
-                f"""CREATE SECRET {secrect_name} (
+                f"""CREATE SECRET {secret_name} (
 TYPE AZURE,
 PROVIDER CREDENTIAL_CHAIN,
 CHAIN '{chain}',
-ACCOUNT_NAME '{an}'
+ACCOUNT_NAME '{account_name}'
 );"""
             )
-        elif storage_options.get("use_emulator", None):
+        elif use_emulator:
             con.execute(
-                f"""CREATE SECRET {secrect_name} (
+                f"""CREATE SECRET {secret_name} (
 TYPE AZURE,
 CONNECTION_STRING 'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;',
 ACCOUNT_NAME 'devstoreaccount1'
@@ -276,14 +275,20 @@ def get_sql_for_delta_expr(
 ) -> ex.Select:
     from .sql_utils import read_parquet, union, filter_via_dict
 
+    account_name_path = None
     if isinstance(dt, Path) or isinstance(dt, str):
         from deltalake import DeltaTable
 
         path_for_delta, storage_options_for_delta = get_storage_options_object_store(
             dt, storage_options, get_credential
         )
-
+        account_name_path = (
+            storage_options_for_delta.get("account_name", None)
+            if storage_options_for_delta
+            else None
+        )
         dt = DeltaTable(path_for_delta, storage_options=storage_options_for_delta)
+
     from .protocol_check import check_is_supported
 
     check_is_supported(dt)
@@ -302,7 +307,10 @@ def get_sql_for_delta_expr(
         owns_con = True
     if dt.table_uri.startswith("az://") or dt.table_uri.startswith("abfss://"):
         apply_storage_options(
-            duck_con, storage_options or dt._storage_options or {}, type="azure"
+            duck_con,
+            storage_options or dt._storage_options or {},
+            type="azure",
+            account_name_path=account_name_path,
         )  # type: ignore
 
     try:

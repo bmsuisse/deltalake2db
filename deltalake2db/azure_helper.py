@@ -20,8 +20,11 @@ def get_storage_options_object_store(
         from urllib.parse import urlparse
 
         up = urlparse(new_path)
-        new_path = new_path.replace(up.scheme + "://" + up.netloc, up.scheme + "://")
+        account_name_from_url = up.netloc.split(".")[0]
 
+        new_path = new_path.replace(up.scheme + "://" + up.netloc, up.scheme + "://")
+    else:
+        account_name_from_url = None
     chain = storage_options.get("chain", None)
     get_credential = get_credential or (lambda x: None)
 
@@ -53,5 +56,13 @@ def get_storage_options_object_store(
         new_opts = storage_options.copy()
         new_opts.pop("chain")
         new_opts["token"] = token
+        if account_name_from_url:
+            new_opts["account_name"] = new_opts.get(
+                "account_name", account_name_from_url
+            )
+        return new_path, new_opts
+    if account_name_from_url is not None and "account_name" not in storage_options:
+        new_opts = storage_options.copy()
+        new_opts["account_name"] = account_name_from_url
         return new_path, new_opts
     return new_path, storage_options
