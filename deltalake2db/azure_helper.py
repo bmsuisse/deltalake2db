@@ -1,11 +1,21 @@
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from azure.core.credentials import TokenCredential
 
 
-def apply_azure_chain(storage_options: Optional[dict]):
+def apply_azure_chain(
+    storage_options: Optional[dict],
+    get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]",
+):
     # support for "Chain" as in duckdb: https://duckdb.org/docs/extensions/azure#credential_chain-provider
     if storage_options is None:
         return None
     chain = storage_options.get("chain", None)
+    get_credential = get_credential or (lambda x: None)
+    def _get_cred(chain: str):
+        if get_credential is None:
+            return None
     if chain is not None:
         from azure.identity import (
             ChainedTokenCredential,
@@ -22,7 +32,7 @@ def apply_azure_chain(storage_options: Optional[dict]):
             "managed_identity": ManagedIdentityCredential,
             "default": DefaultAzureCredential,
         }
-        creds = [map[c]() for c in creds]
+        creds = [get_credential(c) or map[c]() for c in creds]
         cred = ChainedTokenCredential(*creds) if len(creds) > 1 else creds[0]
         token = storage_options["token"] = cred.get_token(
             "https://storage.azure.com/.default"
