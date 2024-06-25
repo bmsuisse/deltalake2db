@@ -273,12 +273,17 @@ def get_sql_for_delta_expr(
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
 ) -> ex.Select:
+    from deltalake import DeltaTable
     from .sql_utils import read_parquet, union, filter_via_dict
 
     account_name_path = None
+    base_path = (
+        dt.table_uri
+        if isinstance(dt, DeltaTable)
+        else (dt if isinstance(dt, str) else str(dt.absolute()))
+    )
+    base_path = base_path.removesuffix("/")
     if isinstance(dt, Path) or isinstance(dt, str):
-        from deltalake import DeltaTable
-
         path_for_delta, storage_options_for_delta = get_storage_options_object_store(
             dt, storage_options, get_credential
         )
@@ -323,7 +328,7 @@ def get_sql_for_delta_expr(
                 continue
             if action_filter and not action_filter(ac):
                 continue
-            fullpath = dt.table_uri.removesuffix("/") + "/" + ac["path"]
+            fullpath = base_path + "/" + ac["path"]
             with duck_con.cursor() as cur:
                 cur.execute(f"select name from parquet_schema('{fullpath}')")
                 cols: list[str] = [c[0] for c in cur.fetchall()]
