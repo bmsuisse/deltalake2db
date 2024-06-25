@@ -21,6 +21,7 @@ def test_get_storage_options_object_store():
     assert creds is not None
     assert ".blob.core" not in new_path
     assert ".dfs.core" not in new_path
+    assert new_path.startswith("az://testlakedb/td/delta/fake")
     assert creds["token"] == "fake_token"
     assert creds["account_name"] == "accountnamethatslong"
     new_path, creds = get_storage_options_object_store(
@@ -32,5 +33,6 @@ def test_get_storage_options_object_store():
     assert creds is not None
     assert ".blob.core" not in new_path
     assert ".dfs.core" not in new_path
+    assert new_path.startswith("abfss://testlakedb/td/delta/fake")
     assert creds["token"] == "fake_token"
     assert creds["account_name"] == "accountnamethatslong"
