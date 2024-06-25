@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Callable, Optional, Union
 from deltalake import DataType, Field
 from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
 import sqlglot.expressions as ex
-from deltalake2db.azure_helper import apply_azure_chain
+from deltalake2db.azure_helper import get_storage_options_object_store
 from deltalake2db.filter_by_meta import _can_filter
 import deltalake2db.sql_utils as squ
 
@@ -279,9 +279,11 @@ def get_sql_for_delta_expr(
     if isinstance(dt, Path) or isinstance(dt, str):
         from deltalake import DeltaTable
 
-        storage_options_for_delta = apply_azure_chain(storage_options, get_credential)
+        path_for_delta, storage_options_for_delta = get_storage_options_object_store(
+            dt, storage_options, get_credential
+        )
 
-        dt = DeltaTable(dt, storage_options=storage_options_for_delta)
+        dt = DeltaTable(path_for_delta, storage_options=storage_options_for_delta)
     from .protocol_check import check_is_supported
 
     check_is_supported(dt)

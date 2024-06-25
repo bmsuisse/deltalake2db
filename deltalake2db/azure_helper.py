@@ -1,21 +1,34 @@
-from typing import Optional, TYPE_CHECKING, Callable
+from typing import Optional, TYPE_CHECKING, Callable, Union
+from pathlib import Path
 
 if TYPE_CHECKING:
     from azure.core.credentials import TokenCredential
 
 
-def apply_azure_chain(
+def get_storage_options_object_store(
+    path: Union[Path, str],
     storage_options: Optional[dict],
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]",
 ):
     # support for "Chain" as in duckdb: https://duckdb.org/docs/extensions/azure#credential_chain-provider
     if storage_options is None:
-        return None
+        return path, None
+    new_path = path
+    if isinstance(new_path, str) and (
+        ".blob.core.windows.net" in new_path or ".dfs.core.windows.net" in new_path
+    ):
+        from urllib.parse import urlparse
+
+        up = urlparse(new_path)
+        new_path = new_path.replace(up.scheme + "://" + up.netloc, up.scheme + "://")
+
     chain = storage_options.get("chain", None)
     get_credential = get_credential or (lambda x: None)
+
     def _get_cred(chain: str):
         if get_credential is None:
             return None
+
     if chain is not None:
         from azure.identity import (
             ChainedTokenCredential,
@@ -40,5 +53,5 @@ def apply_azure_chain(
         new_opts = storage_options.copy()
         new_opts.pop("chain")
         new_opts["token"] = token
-        return new_opts
-    return storage_options
+        return new_path, new_opts
+    return new_path, storage_options
