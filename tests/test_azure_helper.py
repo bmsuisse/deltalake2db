@@ -24,7 +24,7 @@ def test_get_storage_options_object_store():
     assert creds["token"] == "fake_token"
     assert creds["account_name"] == "accountnamethatslong"
     new_path, creds = get_storage_options_object_store(
-        "abfss://accountnamethatslong.df.core.windows.net/testlakedb/td/delta/fake",
+        "abfss://accountnamethatslong.dfs.core.windows.net/testlakedb/td/delta/fake",
         {"chain": "default"},
         get_credential=lambda x: FakeCredential(),
     )
