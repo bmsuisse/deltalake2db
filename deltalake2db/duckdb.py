@@ -10,6 +10,7 @@ import deltalake2db.sql_utils as squ
 
 if TYPE_CHECKING:
     from deltalake import DeltaTable
+    from azure.core.credentials import TokenCredential
     import duckdb
 
 
@@ -243,12 +244,14 @@ def create_view_for_delta(
     *,
     conditions: Optional[dict] = None,
     storage_options: Optional[dict] = None,
+    get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
 ):
     sql = get_sql_for_delta(
         delta_table,
         duck_con=con,
         conditions=conditions,
         storage_options=storage_options,
+        get_credential=get_credential,
     )
     assert '"' not in view_name
     if overwrite:
@@ -268,13 +271,15 @@ def get_sql_for_delta_expr(
     delta_table_cte_name: Union[str, None] = None,
     duck_con: "Union[duckdb.DuckDBPyConnection, None]" = None,
     storage_options: Optional[dict] = None,
+    *,
+    get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
 ) -> ex.Select:
     from .sql_utils import read_parquet, union, filter_via_dict
 
     if isinstance(dt, Path) or isinstance(dt, str):
         from deltalake import DeltaTable
 
-        storage_options_for_delta = apply_azure_chain(storage_options)
+        storage_options_for_delta = apply_azure_chain(storage_options, get_credential)
 
         dt = DeltaTable(dt, storage_options=storage_options_for_delta)
     from .protocol_check import check_is_supported
@@ -412,6 +417,8 @@ def get_sql_for_delta(
     sql_prefix="delta",
     duck_con: "Union[duckdb.DuckDBPyConnection, None]" = None,
     storage_options: Optional[dict] = None,
+    *,
+    get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
 ) -> str:
     expr = get_sql_for_delta_expr(
         dt=dt,
@@ -423,6 +430,7 @@ def get_sql_for_delta(
         cte_wrap_name=cte_wrap_name,
         duck_con=duck_con,
         storage_options=storage_options,
+        get_credential=get_credential,
     )
     if cte_wrap_name:
         suffix_sql = ex.select(ex.Star()).from_(cte_wrap_name).sql(dialect="duckdb")

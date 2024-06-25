@@ -1,11 +1,12 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, cast, Union, Optional
+from typing import TYPE_CHECKING, cast, Union, Optional, Callable
 
 from deltalake2db.azure_helper import apply_azure_chain
 from deltalake2db.filter_by_meta import _can_filter
 
 if TYPE_CHECKING:
     import polars as pl
+    from azure.core.credentials import TokenCredential
 from deltalake import DeltaTable, Field, DataType
 from deltalake.schema import StructType, ArrayType, MapType
 from collections import OrderedDict
@@ -156,12 +157,14 @@ def scan_delta_union(
     delta_table: Union[DeltaTable, Path, str],
     conditions: Optional[dict] = None,
     storage_options: Optional[dict] = None,
+    *,
+    get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
 ) -> "pl.LazyFrame":
     import polars as pl
     from .protocol_check import check_is_supported
 
     if isinstance(delta_table, Path) or isinstance(delta_table, str):
-        storage_options_for_delta = apply_azure_chain(storage_options)
+        storage_options_for_delta = apply_azure_chain(storage_options, get_credential)
         delta_table = DeltaTable(delta_table, storage_options=storage_options_for_delta)
     check_is_supported(delta_table)
     all_ds = []
