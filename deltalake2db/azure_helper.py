@@ -22,7 +22,9 @@ def get_storage_options_object_store(
         up = urlparse(new_path)
         account_name_from_url = up.netloc.split(".")[0]
 
-        new_path = new_path.replace(up.scheme + "://" + up.netloc, up.scheme + "://")
+        new_path = new_path.replace(
+            up.scheme + "://" + up.netloc, up.scheme + "://"
+        ).replace(":///", "://")
     else:
         account_name_from_url = None
     chain = storage_options.get("chain", None)
