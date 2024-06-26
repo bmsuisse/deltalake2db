@@ -176,11 +176,14 @@ def scan_delta_union(
     for ac in delta_table.get_add_actions(flatten=True).to_pylist():
         if conditions is not None and _can_filter(ac, conditions):
             continue
-        fullpath = os.path.join(delta_table.table_uri, ac["path"])
+        fullpath = os.path.join(delta_table.table_uri, ac["path"]).replace("\\", "/")
         base_ds = pl.scan_parquet(
-            fullpath, storage_options=delta_table._storage_options
+            fullpath, storage_options=delta_table._storage_options, glob=False
         )
-        parquet_schema = base_ds.limit(0).collect_schema()
+        try:
+            parquet_schema = base_ds.limit(0).collect_schema()
+        except AttributeError:
+            parquet_schema = base_ds.limit(0).schema  # old polars
         selects = []
         for field in all_fields:
             pl_dtype = _get_type(field.type)

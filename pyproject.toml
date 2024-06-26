@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "deltalake2db"
-version = "0.4.0"
+version = "0.4.1"
 description = ""
 authors = ["Adrian Ehrsam <adrian.ehrsam@bmsuisse.ch>"]
 license = "MIT"
