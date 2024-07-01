@@ -192,6 +192,17 @@ CONNECTION_STRING '{conn_str}',
 ACCOUNT_NAME '{account_name}'
 );"""
             )
+        elif account_name is not None and "client_id" in storage_options:
+            con.execute(
+                f"""CREATE SECRET {secret_name} (
+TYPE AZURE,
+PROVIDER SERVICE_PRINCIPAL,
+TENANT_ID  '{storage_options.get("tenant_id")}',
+CLIENT_ID   '{storage_options.get("client_id")}',
+CLIENT_SECRET    '{storage_options.get("client_secret")}',
+ACCOUNT_NAME '{account_name}'
+);"""
+            )
         elif account_name is not None:
             chain = storage_options.get("chain", "default")
             con.execute(
@@ -217,7 +228,7 @@ ACCOUNT_NAME 'devstoreaccount1'
 
 
 type_map = {
-    "byte": ex.DataType.Type.UTINYINT,
+    "byte": ex.DataType.Type.TINYINT,
     "int": ex.DataType.Type.INT,
     "integer": ex.DataType.Type.INT,
     "long": ex.DataType.Type.BIGINT,

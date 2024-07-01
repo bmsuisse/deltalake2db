@@ -49,6 +49,13 @@ In case there is an unsupported DeltaLake Feature, this will just throw `DeltaPr
 
 For now, only az:// Url's for Azure are tested and supported in DuckDB. For polars it's a lot easier, since polars just uses `object_store` create, so it should just work.
 
+The package does some work to make DuckDB's "Azure Storage Options" work in Polars, to be able to use the same options.
+
+This means you can:
+
+- pass an absolute DuckDB-style Path to Polars, meaning something like `abfss://⟨my_storage_account⟩.dfs.core.windows.net/⟨my_filesystem⟩/⟨path⟩`
+- pass "chain" as option, which will act like [DuckDB's Credential Chain](https://duckdb.org/docs/extensions/azure.html#credential_chain-provider). This requires `azure-identity` Package
+
 ## Looking for something different? :)
 
 We also have the following projects around deltalake:
