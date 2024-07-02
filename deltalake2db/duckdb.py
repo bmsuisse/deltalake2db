@@ -146,9 +146,6 @@ def apply_storage_options_fsspec(
     storage_options: dict,
     account_name_path: Optional[str] = None,
 ):
-    import fsspec
-    import adlfs
-
     use_emulator = storage_options.get("use_emulator", "0") in ["1", "True", "true"]
 
     opts = get_storage_options_fsspec(storage_options)

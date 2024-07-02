@@ -90,7 +90,6 @@ def test_col_mapping(storage_options, use_fsspec: bool):
 
 def test_empty_struct(storage_options):
     # >>> duckdb.execute("""Select { 'lat': 1 } as tester union all select Null""").fetchall()
-    import pyarrow as pa
     import pyarrow.compute as pc
 
     dt = DeltaTable("az://testlakedb/td/delta/fake", storage_options=storage_options)

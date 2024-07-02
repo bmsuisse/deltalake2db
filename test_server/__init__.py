@@ -44,9 +44,7 @@ def upload_to_azurite():
 
 
 def start_azurite() -> Container:
-    client = (
-        docker.from_env()
-    )  # code taken from https://github.com/fsspec/adlfs/blob/main/adlfs/tests/conftest.py#L72
+    client = docker.from_env()  # code taken from https://github.com/fsspec/adlfs/blob/main/adlfs/tests/conftest.py#L72
     azurite_server: Optional[Container] = None
     try:
         m = cast(Container, client.containers.get("test4azurite"))

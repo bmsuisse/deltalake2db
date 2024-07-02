@@ -10,7 +10,7 @@ def get_delta_table(
     uri_or_table: Union[str, Path, DeltaTable],
     storage_options: Optional[dict] = None,
     *,
-    get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None
+    get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
 ) -> DeltaTable:
     base_path = (
         uri_or_table.table_uri
