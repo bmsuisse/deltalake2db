@@ -9,6 +9,15 @@ class FakeCredential(TokenCredential):
         )
 
 
+def test_get_storage_options_fsspec():
+    from deltalake2db.azure_helper import get_storage_options_fsspec
+
+    opt = get_storage_options_fsspec({"chain": "managed_identity"})
+    assert opt["exclude_powershell_credential"] == True
+    assert opt["exclude_managed_identity_credential"] == False
+    assert opt["exclude_cli_credential"] == True
+
+
 def test_get_storage_options_object_store():
     from deltalake2db.azure_helper import get_storage_options_object_store
 

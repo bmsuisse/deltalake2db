@@ -5,7 +5,9 @@ from deltalake import DataType, Field
 from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
 import sqlglot.expressions as ex
 from deltalake2db.azure_helper import (
+    get_storage_options_fsspec,
     get_storage_options_object_store,
+    AZURE_EMULATOR_CONNECTION_STRING,
 )
 from deltalake2db.filter_by_meta import _can_filter
 import deltalake2db.sql_utils as squ
@@ -138,6 +140,32 @@ def load_install_azure(con: "duckdb.DuckDBPyConnection"):
         con.load_extension("azure")
 
 
+def apply_storage_options_fsspec(
+    con: "duckdb.DuckDBPyConnection",
+    base_path: str,
+    storage_options: dict,
+    account_name_path: Optional[str] = None,
+):
+    use_emulator = storage_options.get("use_emulator", "0") in ["1", "True", "true"]
+
+    opts = get_storage_options_fsspec(storage_options)
+    account_name = storage_options.get(
+        "account_name",
+        storage_options.get("azure_storage_account_name", account_name_path),
+    )
+    if not use_emulator:
+        assert account_name is not None, "account_name must be provided for fsspec"
+    proto_name_duckdb = "fsspec_az_" + (account_name or "_emulator")
+    if not con.filesystem_is_registered(proto_name_duckdb):
+        from .fsspec_fs import get_az_blob_fs
+
+        fs = get_az_blob_fs(proto_name_duckdb, **opts)
+
+        con.register_filesystem(fs)  # type: ignore
+
+    return proto_name_duckdb
+
+
 def apply_storage_options(
     con: "duckdb.DuckDBPyConnection",
     storage_options: dict,
@@ -217,7 +245,7 @@ ACCOUNT_NAME '{account_name}'
             con.execute(
                 f"""CREATE SECRET {secret_name} (
 TYPE AZURE,
-CONNECTION_STRING 'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;',
+CONNECTION_STRING '{AZURE_EMULATOR_CONNECTION_STRING}',
 ACCOUNT_NAME 'devstoreaccount1'
 );"""
             )
@@ -255,6 +283,7 @@ def create_view_for_delta(
     conditions: Optional[dict] = None,
     storage_options: Optional[dict] = None,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
+    use_fsspec: bool = False,
 ):
     sql = get_sql_for_delta(
         delta_table,
@@ -262,6 +291,7 @@ def create_view_for_delta(
         conditions=conditions,
         storage_options=storage_options,
         get_credential=get_credential,
+        use_fsspec=use_fsspec,
     )
     assert '"' not in view_name
     if overwrite:
@@ -283,6 +313,7 @@ def get_sql_for_delta_expr(
     storage_options: Optional[dict] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
+    use_fsspec=False,
 ) -> ex.Select:
     from deltalake import DeltaTable
     from .sql_utils import read_parquet, union, filter_via_dict
@@ -321,7 +352,15 @@ def get_sql_for_delta_expr(
 
         duck_con = duckdb.connect()
         owns_con = True
-    if dt.table_uri.startswith("az://") or dt.table_uri.startswith("abfss://"):
+    if use_fsspec:
+        fake_protocol = apply_storage_options_fsspec(
+            duck_con,
+            base_path,
+            storage_options or dt._storage_options or {},
+            account_name_path=account_name_path,
+        )
+        base_path = fake_protocol + "://" + base_path.split("://")[1]
+    elif dt.table_uri.startswith("az://") or dt.table_uri.startswith("abfss://"):
         apply_storage_options(
             duck_con,
             storage_options or dt._storage_options or {},
@@ -445,6 +484,7 @@ def get_sql_for_delta(
     storage_options: Optional[dict] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
+    use_fsspec: bool = False,
 ) -> str:
     expr = get_sql_for_delta_expr(
         dt=dt,
@@ -457,6 +497,7 @@ def get_sql_for_delta(
         duck_con=duck_con,
         storage_options=storage_options,
         get_credential=get_credential,
+        use_fsspec=use_fsspec,
     )
     if cte_wrap_name:
         suffix_sql = ex.select(ex.Star()).from_(cte_wrap_name).sql(dialect="duckdb")
