@@ -221,6 +221,8 @@ def apply_storage_options_azure_ext(
         "account_name",
         storage_options.get("azure_storage_account_name", account_name_path),
     )
+    if str(storage_options.get("anon", "0")).lower() in ["1", "true"]:
+        return None  # no need to create a secret for anon (which is an fsspec-thing)
     use_emulator = storage_options.get("use_emulator", "0") in ["1", "True", "true"]
     secret_name = account_name or ("_emulator" if use_emulator else "")
 
