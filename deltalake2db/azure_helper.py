@@ -51,7 +51,7 @@ def get_storage_options_fsspec(storage_options: dict):
         assert len(creds) == 1, "chain must be one credential for fsspec"
         cred = creds[0]
         storage_options2 = storage_options.copy()
-        storage_options2.pop("chain")
+        storage_options2.pop("chain", None)
         if cred == "default":
             return {"anon": False} | storage_options2
         map_flags = {
@@ -94,6 +94,12 @@ def get_storage_options_object_store(
     else:
         account_name_from_url = None
     chain = storage_options.get("chain", None)
+
+    if "anon" in storage_options:
+        anon_value = str(storage_options["anon"]).lower()  # anon is an fsspec-thing
+        if anon_value in ["0", "false"] and chain is None:
+            chain = "default"
+
     get_credential = get_credential or (lambda x: None)
 
     def _get_cred(chain: str):
@@ -102,7 +108,8 @@ def get_storage_options_object_store(
 
     if chain is not None:
         new_opts = storage_options.copy()
-        new_opts.pop("chain")
+        new_opts.pop("chain", None)
+        new_opts.pop("anon", None)
         cred = _get_credential_from_chain(chain, get_credential)
         new_opts["token"] = cred.get_token(STORAGE_SCOPE).token
         if account_name_from_url:
