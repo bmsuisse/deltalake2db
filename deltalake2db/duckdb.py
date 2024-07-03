@@ -140,6 +140,39 @@ def load_install_azure(con: "duckdb.DuckDBPyConnection"):
         con.load_extension("azure")
 
 
+def apply_storage_options(
+    con: "duckdb.DuckDBPyConnection",
+    uri: Union[str, Path],
+    storage_options: Optional[dict],
+    *,
+    use_fsspec: bool = False,
+):
+    if storage_options is None:
+        return
+    if isinstance(uri, str) and (
+        ".blob.core.windows.net" in uri or ".dfs.core.windows.net" in uri
+    ):
+        from urllib.parse import urlparse
+
+        up = urlparse(uri)
+        account_name_from_url = up.netloc.split(".")[0]
+    else:
+        account_name_from_url = None
+    if use_fsspec:
+        apply_storage_options_fsspec(
+            con,
+            uri if isinstance(uri, str) else str(uri.absolute()),
+            storage_options,
+            account_name_from_url,
+        )
+    else:
+        apply_storage_options_azure_ext(
+            con,
+            storage_options,
+            account_name_path=account_name_from_url,
+        )
+
+
 def apply_storage_options_fsspec(
     con: "duckdb.DuckDBPyConnection",
     base_path: str,
@@ -166,7 +199,7 @@ def apply_storage_options_fsspec(
     return proto_name_duckdb
 
 
-def apply_storage_options(
+def apply_storage_options_azure_ext(
     con: "duckdb.DuckDBPyConnection",
     storage_options: dict,
     *,
@@ -253,6 +286,7 @@ ACCOUNT_NAME 'devstoreaccount1'
             raise ValueError(
                 "No connection string or account_name and account_key provided"
             )
+    return secret_name
 
 
 type_map = {
@@ -361,7 +395,7 @@ def get_sql_for_delta_expr(
         )
         base_path = fake_protocol + "://" + base_path.split("://")[1]
     elif dt.table_uri.startswith("az://") or dt.table_uri.startswith("abfss://"):
-        apply_storage_options(
+        apply_storage_options_azure_ext(
             duck_con,
             storage_options or dt._storage_options or {},
             type="azure",
