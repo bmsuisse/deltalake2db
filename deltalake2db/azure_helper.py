@@ -71,6 +71,15 @@ def get_storage_options_fsspec(storage_options: dict):
     return storage_options
 
 
+def get_account_name_from_path(path: str):
+    if ".blob.core.windows.net" in path or ".dfs.core.windows.net" in path:
+        from urllib.parse import urlparse
+
+        up = urlparse(path)
+        return up.netloc.split(".")[0]
+    return None
+
+
 def get_storage_options_object_store(
     path: Union[Path, str],
     storage_options: Optional[dict],

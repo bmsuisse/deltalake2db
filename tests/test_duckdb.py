@@ -2,6 +2,7 @@ from collections import OrderedDict
 from deltalake import DeltaTable
 import duckdb
 import polars as pl
+import pytest
 
 
 def test_col_mapping():
@@ -39,13 +40,16 @@ def test_col_mapping():
     print(as_py_rows)
 
 
-def test_strange_cols():
+@pytest.mark.parametrize("use_delta_ext", [False, True])
+def test_strange_cols(use_delta_ext):
     dt = DeltaTable("tests/data/user")
 
     from deltalake2db import duckdb_create_view_for_delta
 
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(con, dt, "delta_table")
+        duckdb_create_view_for_delta(
+            con, dt, "delta_table", use_delta_ext=use_delta_ext
+        )
         con.execute("select * from delta_table")
         col_names = [c[0] for c in con.description]
         assert "time stämp" in col_names
