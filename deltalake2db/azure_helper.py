@@ -71,6 +71,15 @@ def get_storage_options_fsspec(storage_options: dict):
     return storage_options
 
 
+def get_account_name_from_path(path: str):
+    if ".blob.core.windows.net" in path or ".dfs.core.windows.net" in path:
+        from urllib.parse import urlparse
+
+        up = urlparse(path)
+        return up.netloc.split(".")[0]
+    return None
+
+
 def get_storage_options_object_store(
     path: Union[Path, str],
     storage_options: Optional[dict],
@@ -109,7 +118,6 @@ def get_storage_options_object_store(
     if chain is not None:
         new_opts = storage_options.copy()
         new_opts.pop("chain", None)
-        new_opts.pop("anon", None)
         cred = _get_credential_from_chain(chain, get_credential)
         new_opts["token"] = cred.get_token(STORAGE_SCOPE).token
         if account_name_from_url:
@@ -117,6 +125,12 @@ def get_storage_options_object_store(
                 "account_name", account_name_from_url
             )
         return new_path, new_opts
+    elif "anon" in storage_options and str(storage_options["anon"]).lower() in [
+        "1",
+        "true",
+    ]:
+        storage_options = storage_options.copy()
+        storage_options.pop("anon")
     if account_name_from_url is not None and "account_name" not in storage_options:
         new_opts = storage_options.copy()
         new_opts["account_name"] = account_name_from_url

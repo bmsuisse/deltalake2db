@@ -42,8 +42,11 @@ def test_chain():
     print(as_py_rows)
 
 
-@pytest.mark.parametrize("use_fsspec", [True, False])
-def test_col_mapping(storage_options, use_fsspec: bool):
+@pytest.mark.parametrize(
+    "use_fsspec,use_delta_ext",
+    [(True, False), (False, False), (False, True)],
+)
+def test_col_mapping(storage_options, use_fsspec: bool, use_delta_ext: bool):
     from deltalake2db import duckdb_create_view_for_delta
 
     with duckdb.connect() as con:
@@ -53,6 +56,7 @@ def test_col_mapping(storage_options, use_fsspec: bool):
             "delta_table",
             storage_options=storage_options,
             use_fsspec=use_fsspec,
+            use_delta_ext=use_delta_ext,
         )
         duckdb_create_view_for_delta(
             con,
@@ -60,6 +64,7 @@ def test_col_mapping(storage_options, use_fsspec: bool):
             "delta_table",
             storage_options=storage_options,
             use_fsspec=use_fsspec,
+            use_delta_ext=use_delta_ext,
         )  # do it twice to test duplicate secrets
 
         df = pl.from_arrow(con.execute("select * from delta_table").fetch_arrow_table())
