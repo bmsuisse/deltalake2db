@@ -601,17 +601,17 @@ test-randomorder = ["pytest-randomly"]
 
 [[package]]
 name = "deltalake"
-version = "0.20.1"
+version = "0.19.2"
 description = "Native Delta Lake Python binding based on delta-rs with Pandas integration"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "deltalake-0.20.1-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:a4dbd455e3511feb8016f9917de558324049b8bbdd401c2658b6d0411f6f082e"},
-    {file = "deltalake-0.20.1-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:e42f4974a14edd63a19752ad6fe1b5cc8ad72c83aa095249713651025ab9707e"},
-    {file = "deltalake-0.20.1-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:45ac9ce1b03ecfd373244573b8cea9e352eae7e1a8987c8b666529864c767659"},
-    {file = "deltalake-0.20.1-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3cc070e727ec83533c776ecd490526356280ff34a71239049a3ada8e1be8319e"},
-    {file = "deltalake-0.20.1-cp38-abi3-win_amd64.whl", hash = "sha256:0f2edb2e0e82b8f5c374912c56b765ed0d39dbc4b96b1d402217d1680cb73b22"},
-    {file = "deltalake-0.20.1.tar.gz", hash = "sha256:b1eacc6fa462ae6c3e40ba444f7353d9d8c1a05056fd31aed7fe6a623898a4a1"},
+    {file = "deltalake-0.19.2-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:471add9cbde0b3c6e4d0fa4f752fa0fbd661039dc59c3c0c986fd40beb9f6958"},
+    {file = "deltalake-0.19.2-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:2ef9abe0a5b33dff307eb43051d0e24bdf35e029decf1467ff2d9a1c103c1672"},
+    {file = "deltalake-0.19.2-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7ba87501b8d4b589caf256b7676f5cf77494aa37a2e7dc82771ceb3ec032e02f"},
+    {file = "deltalake-0.19.2-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:972d1d0a800bc8d1111a3fd0db242ed8406e2a2b4ce0777111d483eccca71c2b"},
+    {file = "deltalake-0.19.2-cp38-abi3-win_amd64.whl", hash = "sha256:badab7d9aa1797a77b941b37894407d9a43719e46c5f0c91ee0ffacd182bb6c1"},
+    {file = "deltalake-0.19.2.tar.gz", hash = "sha256:551026f6f50d265102f5698d389cbbe9163a0de0618bee1380aeed667b5a28cb"},
 ]
 
 [package.dependencies]
@@ -1586,13 +1586,13 @@ rs = ["sqlglotrs (==0.2.12)"]
 
 [[package]]
 name = "tomli"
-version = "2.0.1"
+version = "2.0.2"
 description = "A lil' TOML parser"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 files = [
-    {file = "tomli-2.0.1-py3-none-any.whl", hash = "sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc"},
-    {file = "tomli-2.0.1.tar.gz", hash = "sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f"},
+    {file = "tomli-2.0.2-py3-none-any.whl", hash = "sha256:2ebe24485c53d303f690b0ec092806a085f07af5a5aa1464f3931eec36caaa38"},
+    {file = "tomli-2.0.2.tar.gz", hash = "sha256:d46d457a85337051c36524bc5349dd91b1877838e2979ac5ced3e710ed8a60ed"},
 ]
 
 [[package]]
@@ -1742,4 +1742,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "5ba33fb014ea39d0704b636c878e30943ed61dda6e5668e6bbcbf5328d6e5661"
+content-hash = "9c5236ab55df4624784154194f21d18bb4e4229398beb002b01e7ce15a2e27ac"
