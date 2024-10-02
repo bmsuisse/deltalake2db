@@ -23,9 +23,9 @@ def _get_expr(
 
     if parquet_field is None:
         return (
-            pl.lit(None, _get_type(dtype)).alias(meta.name)
+            pl.lit(None, _get_type(dtype, False)).alias(meta.name)
             if meta
-            else pl.lit(None, _get_type(dtype))
+            else pl.lit(None, _get_type(dtype, False))
         )
 
     pn = (
@@ -92,13 +92,23 @@ def _get_expr(
     return base_expr.alias(meta.name) if meta else base_expr
 
 
-def _get_type(dtype: "DataType") -> "pl.PolarsDataType":
+def _get_type(dtype: "DataType", physical: bool) -> "pl.PolarsDataType":
     import polars as pl
 
     if isinstance(dtype, StructType):
-        return pl.Struct([pl.Field(f.name, _get_type(f.type)) for f in dtype.fields])
+        return pl.Struct(
+            [
+                pl.Field(
+                    f.name
+                    if not physical
+                    else f.metadata.get("delta.columnMapping.physicalName", f.name),
+                    _get_type(f.type, physical),
+                )
+                for f in dtype.fields
+            ]
+        )
     if isinstance(dtype, ArrayType):
-        return pl.List(_get_type(dtype.element_type))
+        return pl.List(_get_type(dtype.element_type, physical))
     if isinstance(dtype, MapType):
         raise NotImplementedError("MapType not supported in polars")
 
@@ -141,6 +151,7 @@ def _filter_cond(f: "pl.LazyFrame", conditions: dict) -> "pl.LazyFrame":
 
 def get_polars_schema(
     delta_table: Union[DeltaTable, Path, str],
+    physical_name: bool = False,
 ) -> "OrderedDict[str, pl.PolarsDataType]":
     from .protocol_check import check_is_supported
 
@@ -149,7 +160,10 @@ def get_polars_schema(
     check_is_supported(delta_table)
     res_dict = OrderedDict()
     for f in delta_table.schema().fields:
-        res_dict[f.name] = _get_type(f.type)
+        pn = f.name
+        if physical_name:
+            pn = f.metadata.get("delta.columnMapping.physicalName", f.name)
+        res_dict[pn] = _get_type(f.type, physical_name)
     return res_dict
 
 
@@ -173,53 +187,60 @@ def scan_delta_union(
     check_is_supported(delta_table)
     all_ds = []
     all_fields = delta_table.schema().fields
+    physical_schema = get_polars_schema(delta_table, physical_name=True)
+    physical_schema_no_parts = physical_schema.copy()
+    for pc in delta_table.metadata().partition_columns:
+        physical_schema_no_parts.pop(pc)
     for ac in delta_table.get_add_actions(flatten=True).to_pylist():
         if conditions is not None and _can_filter(ac, conditions):
             continue
         fullpath = os.path.join(delta_table.table_uri, ac["path"]).replace("\\", "/")
         base_ds = pl.scan_parquet(
-            fullpath, storage_options=delta_table._storage_options, glob=False
+            fullpath,
+            storage_options=delta_table._storage_options,
+            glob=False,
+            schema=physical_schema_no_parts,
+            allow_missing_columns=True,
         )
-        try:
-            parquet_schema = base_ds.limit(0).collect_schema()
-        except AttributeError:
-            parquet_schema = base_ds.limit(0).schema  # old polars
         selects = []
         for field in all_fields:
-            pl_dtype = _get_type(field.type)
             pn = field.metadata.get("delta.columnMapping.physicalName", field.name)
             if "partition_values" in ac and pn in ac["partition_values"]:
                 part_vl = ac["partition_values"][pn]
-                selects.append(pl.lit(part_vl, pl_dtype).alias(field.name))
+                selects.append(
+                    pl.lit(part_vl, _get_type(field.type, False)).alias(field.name)
+                )
             elif "partition." + pn in ac:
                 part_vl = ac["partition." + pn]
-                selects.append(pl.lit(part_vl, pl_dtype).alias(field.name))
+                selects.append(
+                    pl.lit(part_vl, _get_type(field.type, False)).alias(field.name)
+                )
             elif "partition_values" in ac and field.name in ac["partition_values"]:
                 # as of delta 0.14
                 part_vl = ac["partition_values"][field.name]
-                selects.append(pl.lit(part_vl, pl_dtype).alias(field.name))
+                selects.append(
+                    pl.lit(part_vl, _get_type(field.type, False)).alias(field.name)
+                )
             elif "partition." + field.name in ac:
                 # as of delta 0.14
                 part_vl = ac["partition." + field.name]
-                selects.append(pl.lit(part_vl, pl_dtype).alias(field.name))
-            elif (
-                field.metadata.get("delta.columnMapping.physicalName", field.name)
-                in parquet_schema
-            ):
+                selects.append(
+                    pl.lit(part_vl, _get_type(field.type, False)).alias(field.name)
+                )
+            else:
                 selects.append(
                     _get_expr(
                         None,
                         field.type,
                         field,
-                        parquet_schema.get(
+                        physical_schema.get(
                             field.metadata.get(
                                 "delta.columnMapping.physicalName", field.name
                             )
                         ),
                     )
                 )
-            else:
-                selects.append(pl.lit(None, pl_dtype).alias(field.name))
+
         ds = (
             _filter_cond(base_ds.select(*selects), conditions)
             if conditions is not None
@@ -228,6 +249,6 @@ def scan_delta_union(
         all_ds.append(ds)
     if len(all_ds) == 0:
         return pl.DataFrame(
-            data=[], schema={f.name: _get_type(f.type) for f in all_fields}
+            data=[], schema={f.name: _get_type(f.type, False) for f in all_fields}
         ).lazy()
     return pl.concat(all_ds, how="diagonal_relaxed")
