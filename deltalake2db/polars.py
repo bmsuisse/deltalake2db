@@ -189,8 +189,13 @@ def scan_delta_union(
     all_fields = delta_table.schema().fields
     physical_schema = get_polars_schema(delta_table, physical_name=True)
     physical_schema_no_parts = physical_schema.copy()
+
+    logical_to_physical = {
+        f.name: f.metadata.get("delta.columnMapping.physicalName", f.name)
+        for f in all_fields
+    }
     for pc in delta_table.metadata().partition_columns:
-        physical_schema_no_parts.pop(pc)
+        physical_schema_no_parts.pop(logical_to_physical.get(pc, pc))
     for ac in delta_table.get_add_actions(flatten=True).to_pylist():
         if conditions is not None and _can_filter(ac, conditions):
             continue
