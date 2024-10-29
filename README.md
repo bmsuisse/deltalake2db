@@ -26,7 +26,7 @@ If you'd like to manipulate you can use `get_sql_for_delta_expr` which returns a
 
 ## Use with Polars
 
-Install `deltalake2db` and `polars` using pip/poetry/whatever you use.
+Install `deltalake2db` and `polars>=1.12` using pip/poetry/whatever you use.
 
 ```python
 dt = DeltaTable("tests/data/faker2")
