@@ -128,7 +128,7 @@ def _get_type(dtype: "DataType", physical: bool) -> "pl.PolarsDataType":
     elif dtype_str == "date":
         return pl.Date
     elif dtype_str == "timestamp":
-        return pl.Datetime(time_unit="ns", time_zone="utc")
+        return pl.Datetime(time_unit="us", time_zone="utc")
     elif dtype_str == "binary":
         return pl.Binary
     elif dtype_str.startswith("decimal"):
@@ -141,7 +141,7 @@ def _get_type(dtype: "DataType", physical: bool) -> "pl.PolarsDataType":
     elif dtype_str == "null":
         return pl.Null
     elif dtype_str in ["timestampNtz", "timestamp_ntz"]:
-        return pl.Datetime(time_unit="ns", time_zone=None)
+        return pl.Datetime(time_unit="us", time_zone=None)
     raise NotImplementedError(f"{dtype_str} not supported in polars currently")
 
 
