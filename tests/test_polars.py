@@ -76,6 +76,22 @@ def test_user_empty():
     assert "time stämp" in df.columns
 
 
+def test_select():
+    dt = DeltaTable("tests/data/user")
+
+    from deltalake2db import polars_scan_delta, PolarsSettings
+
+    df = polars_scan_delta(dt, settings=PolarsSettings(fields=["User - iD"])).collect()
+    assert len(df.columns) == 1
+    assert "User - iD" in df.columns
+
+    df = polars_scan_delta(
+        dt, settings=PolarsSettings(exclude_fields=["User - iD"])
+    ).collect()
+    assert len(df.columns) > 1
+    assert "User - iD" not in df.columns
+
+
 def test_strange_cols():
     dt = DeltaTable("tests/data/user")
 
