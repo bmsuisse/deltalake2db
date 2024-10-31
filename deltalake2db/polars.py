@@ -15,6 +15,9 @@ import os
 
 
 class PolarsSettings:
+    exclude_fields: Optional[list[str]] = None
+    fields: Optional[list[str]] = None
+
     timestamp_ntz_type: "pl.Datetime"
     timestamp_type: "pl.Datetime"
 
@@ -23,6 +26,8 @@ class PolarsSettings:
         *,
         timestamp_ntz_type: "Optional[pl.Datetime]" = None,
         timestamp_type: "Optional[pl.Datetime]" = None,
+        exclude_fields: Optional[list[str]] = None,
+        fields: Optional[list[str]] = None,
     ):
         import polars as pl
 
@@ -32,6 +37,8 @@ class PolarsSettings:
         self.timestamp_type = timestamp_type or pl.Datetime(
             time_unit="us", time_zone="utc"
         )
+        self.exclude_fields = exclude_fields
+        self.fields = fields
 
 
 def _get_expr(
@@ -187,9 +194,12 @@ def get_polars_schema(
         delta_table = DeltaTable(delta_table)
     check_is_supported(delta_table)
     res_dict = OrderedDict()
-    meta = delta_table.metadata()
     for f in delta_table.schema().fields:
         pn = f.name
+        if settings.exclude_fields and f.name in settings.exclude_fields:
+            continue
+        if settings.fields and f.name not in settings.fields:
+            continue
         if physical_name:
             pn = f.metadata.get("delta.columnMapping.physicalName", f.name)
         res_dict[pn] = _get_type(f.type, physical_name, settings)
@@ -217,12 +227,16 @@ def scan_delta_union(
     check_is_supported(delta_table)
     all_ds = []
     all_fields = delta_table.schema().fields
-    physical_schema = get_polars_schema(delta_table, physical_name=True)
+    physical_schema = get_polars_schema(
+        delta_table, physical_name=True, settings=settings
+    )
     physical_schema_no_parts = physical_schema.copy()
 
     logical_to_physical = {
         f.name: f.metadata.get("delta.columnMapping.physicalName", f.name)
         for f in all_fields
+        if (settings.exclude_fields is None or f.name not in settings.exclude_fields)
+        and (settings.fields is None or f.name in settings.fields)
     }
     for pc in delta_table.metadata().partition_columns:
         physical_schema_no_parts.pop(logical_to_physical.get(pc, pc))
@@ -268,6 +282,10 @@ def scan_delta_union(
         )
         selects = []
         for field in all_fields:
+            if settings.exclude_fields and field.name in settings.exclude_fields:
+                continue
+            if settings.fields and field.name not in settings.fields:
+                continue
             pn = field.metadata.get("delta.columnMapping.physicalName", field.name)
             if "partition_values" in ac and pn in ac["partition_values"]:
                 part_vl = ac["partition_values"][pn]
