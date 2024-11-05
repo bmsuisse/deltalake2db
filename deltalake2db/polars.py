@@ -186,7 +186,7 @@ def get_polars_schema(
     delta_table: Union[DeltaTable, Path, str],
     physical_name: bool = False,
     settings: PolarsSettings = PolarsSettings(),
-) -> "OrderedDict[str, pl.DataType]":
+) -> "pl.Schema":
     from .protocol_check import check_is_supported
     import polars as pl
 
@@ -206,6 +206,18 @@ def get_polars_schema(
     return pl.Schema(res_dict)
 
 
+def _has_datetime_field(dt: "pl.PolarsDataType") -> bool:
+    if isinstance(dt, pl.Datetime) or dt == pl.Datetime:
+        return True
+    if isinstance(dt, pl.Struct):
+        return any(_has_datetime_field(f.dtype) for f in dt.fields)
+    if isinstance(dt, pl.List):
+        return _has_datetime_field(dt.inner)
+    if isinstance(dt, pl.Array):
+        return _has_datetime_field(dt.inner)
+    return False
+
+
 def scan_delta_union(
     delta_table: Union[DeltaTable, Path, str],
     conditions: Optional[dict] = None,
@@ -215,6 +227,7 @@ def scan_delta_union(
     settings=PolarsSettings(),
 ) -> "pl.LazyFrame":
     import polars as pl
+    import polars.datatypes as pldt
     from .protocol_check import check_is_supported
 
     if isinstance(delta_table, Path) or isinstance(delta_table, str):
@@ -244,10 +257,10 @@ def scan_delta_union(
     datetime_fields = {
         key: value
         for key, value in physical_schema_no_parts.items()
-        if isinstance(value, pl.Datetime)
+        if _has_datetime_field(value)
     }
 
-    dt_mapping: Optional[dict[str, pl.Datetime]] = None
+    dt_mapping: Optional[dict[str, Union[pl.DataType, pldt.DataTypeClass]]] = None
     dt_mapping_complete = False
     for ac in delta_table.get_add_actions(flatten=True).to_pylist():
         if conditions is not None and _can_filter(ac, conditions):
@@ -266,13 +279,13 @@ def scan_delta_union(
                 if pys_type is None:
                     dt_mapping_complete = False
                     continue
-                elif isinstance(pys_type, pl.Datetime):
-                    dt_mapping[pn] = pys_type
-                elif isinstance(pys_type, pl.Int64):  # int64 is microsecond
+                if isinstance(pys_type, pl.Int64):  # int64 is microsecond
                     dt_mapping[pn] = pl.Datetime(time_unit="us", time_zone="utc")
                 else:
-                    pass  # can that happen?
+                    dt_mapping[pn] = pys_type
+
                 physical_schema_no_parts[pn] = dt_mapping[pn]
+
         base_ds = pl.scan_parquet(
             fullpath,
             storage_options=delta_table._storage_options,
