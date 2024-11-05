@@ -61,7 +61,7 @@ def start_azurite() -> Container:
             "mcr.microsoft.com/azure-storage/azurite:latest",
             detach=True,
             name="test4azurite",
-            ports={"10000/tcp": "10000", "10001/tcp": "10001", "10002/tcp": "10002"},
+            ports={"10000/tcp": 10000, "10001/tcp": 10001, "10002/tcp": 10002},
         )  # type: ignore
     assert azurite_server is not None
     azurite_server.start()
