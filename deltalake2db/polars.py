@@ -207,6 +207,8 @@ def get_polars_schema(
 
 
 def _has_datetime_field(dt: "pl.PolarsDataType") -> bool:
+    import polars as pl
+
     if isinstance(dt, pl.Datetime) or dt == pl.Datetime:
         return True
     if isinstance(dt, pl.Struct):
