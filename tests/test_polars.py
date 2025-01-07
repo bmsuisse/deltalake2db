@@ -1,17 +1,18 @@
 from collections import OrderedDict
+from typing import Union
 from deltalake import DeltaTable
 import polars as pl
 import pytest
 
-
-def test_col_mapping():
+@pytest.mark.parametrize("use_pyarrow", [True, False])
+def test_col_mapping(use_pyarrow):
     dt = DeltaTable("tests/data/faker2")
 
-    from deltalake2db import polars_scan_delta
+    from deltalake2db import polars_scan_delta, PolarsSettings
 
-    df = polars_scan_delta(dt)
+    df = polars_scan_delta(dt, settings=PolarsSettings(use_pyarrow=use_pyarrow))
 
-    df = df.collect()
+    df = df.collect() if not isinstance(df, pl.DataFrame) else df
 
     assert isinstance(df.schema["main_coord"], pl.Struct)
     fields = df.schema["main_coord"].fields
@@ -34,8 +35,11 @@ def test_col_mapping():
     as_py_rows = df.rows(named=True)
     print(as_py_rows)
 
+def _collect(df: Union[pl.DataFrame, pl.LazyFrame]):
+    return df.collect() if not isinstance(df, pl.DataFrame) else df
 
-def test_user_add():
+@pytest.mark.parametrize("use_pyarrow", [True, False])
+def test_user_add(use_pyarrow):
     import shutil
     import pandas as pd
 
@@ -57,11 +61,11 @@ def test_user_add():
     dt_o = DeltaTable("tests/data/_user3")
     dt_o.load_as_version(old_version)
 
-    from deltalake2db import polars_scan_delta
+    from deltalake2db import polars_scan_delta, PolarsSettings
     import polars as pl
 
-    nc = polars_scan_delta(dt).select(pl.col("User - iD")).collect().to_dicts()
-    oc = polars_scan_delta(dt_o).select(pl.col("User - iD")).collect().to_dicts()
+    nc = _collect(polars_scan_delta(dt, settings=PolarsSettings(use_pyarrow=use_pyarrow)).select(pl.col("User - iD"))).to_dicts()
+    oc = _collect(polars_scan_delta(dt_o, settings=PolarsSettings(use_pyarrow=use_pyarrow)).select(pl.col("User - iD"))).to_dicts()
     diff = [o["User - iD"] for o in nc if o not in oc]
     assert diff == [1555]
 
@@ -71,7 +75,7 @@ def test_user_empty():
 
     from deltalake2db import polars_scan_delta
 
-    df = polars_scan_delta(dt).collect()
+    df = _collect(polars_scan_delta(dt))
     assert df.shape[0] == 0
     assert "time stämp" in df.columns
 
@@ -81,36 +85,38 @@ def test_select():
 
     from deltalake2db import polars_scan_delta, PolarsSettings
 
-    df = polars_scan_delta(dt, settings=PolarsSettings(fields=["User - iD"])).collect()
+    df = _collect(polars_scan_delta(dt, settings=PolarsSettings(fields=["User - iD"])))
     assert len(df.columns) == 1
     assert "User - iD" in df.columns
 
-    df = polars_scan_delta(
+    df = _collect(polars_scan_delta(
         dt, settings=PolarsSettings(exclude_fields=["User - iD"])
-    ).collect()
+    ))
     assert len(df.columns) > 1
     assert "User - iD" not in df.columns
 
 
-def test_strange_cols():
+@pytest.mark.parametrize("use_pyarrow", [True, False])
+def test_strange_cols(use_pyarrow):
     dt = DeltaTable("tests/data/user")
 
-    from deltalake2db import polars_scan_delta
+    from deltalake2db import polars_scan_delta, PolarsSettings
 
-    df = polars_scan_delta(dt)
+    df = polars_scan_delta(dt, settings=PolarsSettings(use_pyarrow=use_pyarrow))
 
-    df = df.collect()
+    df = _collect(df)
     col_names = df.columns
     assert "time stämp" in col_names
 
 
-def test_filter_number():
+@pytest.mark.parametrize("use_pyarrow", [True, False])
+def test_filter_number(use_pyarrow):
     dt = DeltaTable("tests/data/user")
 
-    from deltalake2db import polars_scan_delta
+    from deltalake2db import polars_scan_delta, PolarsSettings
 
-    df = polars_scan_delta(dt, conditions={"Age": 23.0})
-    res = df.collect().to_dicts()
+    df = polars_scan_delta(dt, conditions={"Age": 23.0}, settings=PolarsSettings(use_pyarrow=use_pyarrow))
+    res = _collect(df).to_dicts()
     assert len(res) == 1
     assert res[0]["FirstName"] == "Peter"
 
@@ -125,7 +131,7 @@ def test_filter_name():
     from deltalake2db import polars_scan_delta
 
     df = polars_scan_delta(dt, conditions={"FirstName": "Peter"})
-    res = df.collect().to_dicts()
+    res = _collect(df).to_dicts()
     assert len(res) == 1
     assert res[0]["FirstName"] == "Peter"
 
@@ -150,7 +156,7 @@ def test_empty_struct():
 
     df = polars_scan_delta(dt)
 
-    df = df.collect()
+    df = _collect(df)
 
     mc = df.filter(new_name="Hans Heiri").select("main_coord").to_dicts()
     assert len(mc) == 1
