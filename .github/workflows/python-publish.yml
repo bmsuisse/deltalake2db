@@ -29,9 +29,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install poetry
-          poetry install --all-extras
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          uv sync --all-extras --group test
       - name: Build package
-        run: poetry build
+        run: uv build
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
