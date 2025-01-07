@@ -5,7 +5,7 @@ to either Polars or DuckDB with better Protocol Support as the main `deltalake` 
 
 ## Use with Duckdb
 
-Install `deltalake2db` and `duckdb` using pip/poetry/whatever you use.
+Install `deltalake2db` and `duckdb` using pip/uv/poetry/whatever you use.
 
 Then you can do like this:
 
@@ -26,7 +26,7 @@ If you'd like to manipulate you can use `get_sql_for_delta_expr` which returns a
 
 ## Use with Polars
 
-Install `deltalake2db` and `polars>=1.12` using pip/poetry/whatever you use.
+Install `deltalake2db` and `polars>=1.12` using pip/uv/poetry/whatever you use.
 
 ```python
 dt = DeltaTable("tests/data/faker2")
