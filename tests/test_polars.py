@@ -148,7 +148,6 @@ def test_schema():
         assert df.schema == schema, f"Schema for {tbl} does not match"
 
 
-@pytest.mark.skip(reason="Polars reads null structs as structs, so no luck")
 def test_empty_struct():
     dt = DeltaTable("tests/data/faker2")
 
