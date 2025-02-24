@@ -3,6 +3,8 @@ from deltalake import DeltaTable
 import polars as pl
 import pytest
 
+from deltalake2db.polars import PolarsSettings
+
 
 @pytest.mark.skip(reason="Would need a real account for this")
 def test_chain():
@@ -35,14 +37,19 @@ def test_chain():
     print(as_py_rows)
 
 
-def test_col_mapping(storage_options):
-    dt = DeltaTable("az://testlakedb/td/delta/fake", storage_options=storage_options)
-
+@pytest.mark.parametrize("use_pyarrow", [True, False])
+def test_col_mapping(storage_options, use_pyarrow):
     from deltalake2db import polars_scan_delta
 
-    df = polars_scan_delta(dt)
-
-    df = df.collect()
+    df = polars_scan_delta(
+        "az://testlakedb/td/delta/fake",
+        storage_options=storage_options,
+        settings=PolarsSettings(
+            use_pyarrow=use_pyarrow,
+        ),
+    )
+    if isinstance(df, pl.LazyFrame):
+        df = df.collect()
 
     assert isinstance(df.schema["main_coord"], pl.Struct)
     fields = df.schema["main_coord"].fields
@@ -66,7 +73,6 @@ def test_col_mapping(storage_options):
     print(as_py_rows)
 
 
-@pytest.mark.skip(reason="Polars reads null structs as structs, so no luck")
 def test_empty_struct(storage_options):
     dt = DeltaTable("az://testlakedb/td/delta/fake", storage_options=storage_options)
 

@@ -1,7 +1,10 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, Union, Optional, Callable, overload
 
-from deltalake2db.azure_helper import get_storage_options_object_store
+from deltalake2db.azure_helper import (
+    get_storage_options_object_store,
+    get_storage_options_fsspec,
+)
 from deltalake2db.filter_by_meta import _can_filter
 
 if TYPE_CHECKING:
@@ -29,7 +32,7 @@ class PolarsSettings:
         timestamp_type: "Optional[pl.Datetime]" = None,
         exclude_fields: Optional[list[str]] = None,
         fields: Optional[list[str]] = None,
-        use_pyarrow = False
+        use_pyarrow=False,
     ):
         import polars as pl
 
@@ -218,24 +221,18 @@ def _has_datetime_field(dt: "pl.PolarsDataType") -> bool:
         return _has_datetime_field(dt.inner)
     return False
 
+
 def _cast_schema(ds: "pl.DataFrame", schema: "pl_schema.Schema") -> "pl.DataFrame":
     import polars as pl
+
     exprs = []
     for name, dtype in schema.items():
-        if name not in ds.columns:            
+        if name not in ds.columns:
             exprs.append(pl.lit(None, dtype).cast(dtype).alias(name))
         else:
-            
             exprs.append(pl.col(name).cast(dtype).alias(name))
     return ds.select(exprs)
 
-@overload
-def scan_delta_union(
-    delta_table: Union[DeltaTable, Path, str],
-    conditions: Optional[dict] = None,
-    storage_options: Optional[dict] = None,
-    *,
-    get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None) -> "pl.LazyFrame" : ...
 
 @overload
 def scan_delta_union(
@@ -244,7 +241,19 @@ def scan_delta_union(
     storage_options: Optional[dict] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
-    settings=PolarsSettings()) -> "Union[pl.LazyFrame, pl.DataFrame]" : ...
+) -> "pl.LazyFrame": ...
+
+
+@overload
+def scan_delta_union(
+    delta_table: Union[DeltaTable, Path, str],
+    conditions: Optional[dict] = None,
+    storage_options: Optional[dict] = None,
+    *,
+    get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
+    settings=PolarsSettings(),
+) -> "Union[pl.LazyFrame, pl.DataFrame]": ...
+
 
 def scan_delta_union(
     delta_table: Union[DeltaTable, Path, str],
@@ -265,8 +274,10 @@ def scan_delta_union(
         delta_table = DeltaTable(
             path_for_delta, storage_options=storage_options_for_delta
         )
+    else:
+        path_for_delta = None
     check_is_supported(delta_table)
-    all_ds: Union[ list[pl.LazyFrame],  list[pl.DataFrame]] = []
+    all_ds: Union[list[pl.LazyFrame], list[pl.DataFrame]] = []
     all_fields = delta_table.schema().fields
     physical_schema = get_polars_schema(
         delta_table, physical_name=True, settings=settings
@@ -290,21 +301,52 @@ def scan_delta_union(
 
     dt_mapping: Optional[dict[str, Union[pl.DataType, pldt.DataTypeClass]]] = None
     dt_mapping_complete = False
+    if (
+        settings.use_pyarrow
+        and storage_options
+        and path_for_delta
+        and "://" in str(path_for_delta)
+    ):
+        import pyarrow as pa
+        import pyarrow.fs as pafs
+        import fsspec
+
+        proto = str(path_for_delta).split("://")[0]
+        if proto == "az":
+            proto = "abfss"
+        storage_options_for_fsspec = get_storage_options_fsspec(storage_options)
+        fs = fsspec.filesystem(proto, **storage_options_for_fsspec)
+        pyarrow_opts = {"filesystem": fs}  # type: ignore
+    else:
+        pyarrow_opts = None
+        storage_options_for_fsspec = None
+
     for ac in delta_table.get_add_actions(flatten=True).to_pylist():
         if conditions is not None and _can_filter(ac, conditions):
             continue
         fullpath = os.path.join(delta_table.table_uri, ac["path"]).replace("\\", "/")
         if settings.use_pyarrow:
-            ds = pl.read_parquet(fullpath, storage_options=delta_table._storage_options, glob=False,use_pyarrow=True)
+            ds = pl.read_parquet(
+                fullpath,
+                storage_options=storage_options_for_fsspec,
+                glob=False,
+                use_pyarrow=True,
+                pyarrow_options=pyarrow_opts,
+            )
         else:
             ds = None
 
         if datetime_fields and not dt_mapping_complete:
             # we need this as long as https://github.com/pola-rs/polars/issues/19533 is not done
-            file_schema = pl.scan_parquet(
-                fullpath, storage_options=delta_table._storage_options, glob=False,
-                
-            ).collect_schema() if ds is None else ds.schema
+            file_schema = (
+                pl.scan_parquet(
+                    fullpath,
+                    storage_options=delta_table._storage_options,
+                    glob=False,
+                ).collect_schema()
+                if ds is None
+                else ds.schema
+            )
             dt_mapping_complete = True
             for pn in datetime_fields.keys():
                 dt_mapping = {}
@@ -319,14 +361,18 @@ def scan_delta_union(
                     dt_mapping[pn] = pys_type
 
                 physical_schema_no_parts[pn] = dt_mapping[pn]
-        
-        base_ds = pl.scan_parquet(
-            fullpath,
-            storage_options=delta_table._storage_options,
-            glob=False,
-            schema=physical_schema_no_parts,
-            allow_missing_columns=True,
-        ) if ds is None else _cast_schema(ds, physical_schema_no_parts)
+
+        base_ds = (
+            pl.scan_parquet(
+                fullpath,
+                storage_options=delta_table._storage_options,
+                glob=False,
+                schema=physical_schema_no_parts,
+                allow_missing_columns=True,
+            )
+            if ds is None
+            else _cast_schema(ds, physical_schema_no_parts)
+        )
         selects = []
         for field in all_fields:
             if settings.exclude_fields and field.name in settings.exclude_fields:
@@ -384,7 +430,7 @@ def scan_delta_union(
             if conditions is not None
             else base_ds.select(*selects)
         )
-        all_ds.append(ds) # type: ignore
+        all_ds.append(ds)  # type: ignore
     if len(all_ds) == 0:
         return pl.DataFrame(
             data=[],

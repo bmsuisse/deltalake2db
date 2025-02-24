@@ -506,7 +506,7 @@ wheels = [
 
 [[package]]
 name = "deltalake2db"
-version = "0.7.4"
+version = "0.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "azure-identity" },
@@ -519,6 +519,7 @@ dev = [
     { name = "adlfs" },
     { name = "duckdb" },
     { name = "polars" },
+    { name = "pyarrow-stubs" },
     { name = "pyright" },
     { name = "ruff" },
 ]
@@ -546,6 +547,7 @@ dev = [
     { name = "adlfs", specifier = ">=2024.4.1,<2025" },
     { name = "duckdb", specifier = ">=1.0.0,<2" },
     { name = "polars", specifier = ">=1.12.0,<2" },
+    { name = "pyarrow-stubs", specifier = ">=17.16" },
     { name = "pyright", specifier = ">=1.1.352,<2" },
     { name = "ruff", specifier = ">=0.4.3" },
 ]
@@ -1242,6 +1244,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/70/0a/71da7b0db0c7078d4cf34ecf0c70ded5ed29decc06612097474e0114f4cc/pyarrow_hotfix-0.6.tar.gz", hash = "sha256:79d3e030f7ff890d408a100ac16d6f00b14d44a502d7897cd9fc3e3a534e9945", size = 9754 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e4/f4/9ec2222f5f5f8ea04f66f184caafd991a39c8782e31f5b0266f101cb68ca/pyarrow_hotfix-0.6-py3-none-any.whl", hash = "sha256:dcc9ae2d220dff0083be6a9aa8e0cdee5182ad358d4931fce825c545e5c89178", size = 7888 },
+]
+
+[[package]]
+name = "pyarrow-stubs"
+version = "17.16"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyarrow" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/20/1f/cb97ce441ecf64e93f703e8d6da4cab6a086bfb422c3180dff1bab4d14bc/pyarrow_stubs-17.16.tar.gz", hash = "sha256:ab74652db59855a09d5de7009f57d079f4fb318650ff767ec91841f3d2fa550c", size = 83462 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4a/99/3944ec099bb60cc11bf138dec98d1d42a3dc3f6afda42896b09461e0efb7/pyarrow_stubs-17.16-py3-none-any.whl", hash = "sha256:76eebeb2433fe93754c74a252e976b4e76a182f8f054748872aa3a98d347621d", size = 79881 },
 ]
 
 [[package]]
