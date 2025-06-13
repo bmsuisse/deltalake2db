@@ -4,7 +4,7 @@ version = "0.9.0"
 description = ""
 authors = [{ name = "Adrian Ehrsam", email = "adrian.ehrsam@bmsuisse.ch" }]
 dependencies = [
-    "deltalake >=0.16.1,<0.19.0,!=0.18.2",
+    "deltalake >=1.0",
     "sqlglot >=22.2.1",
     "azure-identity >=1.16.0,<2",
 ]
@@ -39,7 +39,6 @@ dev = [
     "duckdb >=1.0.0,<2",
     "ruff >=0.4.3",
     "adlfs >=2024.4.1,<2025",
-    "pyarrow-stubs>=17.16",
 ]
 test = [
     "pytest-cov >=4.1.0,<5",
@@ -51,4 +50,6 @@ test = [
     "python-dotenv >=1.0.1,<2",
     "pandas >=1.4.2",
     "azure-identity >=1.16.0,<2",
+    "pyarrow>=20.0.0",
+    "pyarrow-stubs>=19.4",
 ]
