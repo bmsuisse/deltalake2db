@@ -4,6 +4,7 @@ from deltalake import DeltaTable
 import polars as pl
 import pytest
 
+
 @pytest.mark.parametrize("use_pyarrow", [True, False])
 def test_col_mapping(use_pyarrow):
     dt = DeltaTable("tests/data/faker2")
@@ -35,8 +36,10 @@ def test_col_mapping(use_pyarrow):
     as_py_rows = df.rows(named=True)
     print(as_py_rows)
 
+
 def _collect(df: Union[pl.DataFrame, pl.LazyFrame]):
     return df.collect() if not isinstance(df, pl.DataFrame) else df
+
 
 @pytest.mark.parametrize("use_pyarrow", [True, False])
 def test_user_add(use_pyarrow):
@@ -48,12 +51,12 @@ def test_user_add(use_pyarrow):
     dt = DeltaTable("tests/data/_user3")
     old_version = dt.version()
     from deltalake.writer import write_deltalake
+    from deltalake import __version__ as deltalake_version
 
     write_deltalake(
         dt,
         pd.DataFrame({"User - iD": [1555], "FirstName": ["Hansueli"]}),
         schema_mode="merge",
-        engine="rust",
         mode="append",
     )
     dt.update_incremental()
@@ -64,8 +67,16 @@ def test_user_add(use_pyarrow):
     from deltalake2db import polars_scan_delta, PolarsSettings
     import polars as pl
 
-    nc = _collect(polars_scan_delta(dt, settings=PolarsSettings(use_pyarrow=use_pyarrow)).select(pl.col("User - iD"))).to_dicts()
-    oc = _collect(polars_scan_delta(dt_o, settings=PolarsSettings(use_pyarrow=use_pyarrow)).select(pl.col("User - iD"))).to_dicts()
+    nc = _collect(
+        polars_scan_delta(dt, settings=PolarsSettings(use_pyarrow=use_pyarrow)).select(
+            pl.col("User - iD")
+        )
+    ).to_dicts()
+    oc = _collect(
+        polars_scan_delta(
+            dt_o, settings=PolarsSettings(use_pyarrow=use_pyarrow)
+        ).select(pl.col("User - iD"))
+    ).to_dicts()
     diff = [o["User - iD"] for o in nc if o not in oc]
     assert diff == [1555]
 
@@ -89,9 +100,9 @@ def test_select():
     assert len(df.columns) == 1
     assert "User - iD" in df.columns
 
-    df = _collect(polars_scan_delta(
-        dt, settings=PolarsSettings(exclude_fields=["User - iD"])
-    ))
+    df = _collect(
+        polars_scan_delta(dt, settings=PolarsSettings(exclude_fields=["User - iD"]))
+    )
     assert len(df.columns) > 1
     assert "User - iD" not in df.columns
 
@@ -115,7 +126,9 @@ def test_filter_number(use_pyarrow):
 
     from deltalake2db import polars_scan_delta, PolarsSettings
 
-    df = polars_scan_delta(dt, conditions={"Age": 23.0}, settings=PolarsSettings(use_pyarrow=use_pyarrow))
+    df = polars_scan_delta(
+        dt, conditions={"Age": 23.0}, settings=PolarsSettings(use_pyarrow=use_pyarrow)
+    )
     res = _collect(df).to_dicts()
     assert len(res) == 1
     assert res[0]["FirstName"] == "Peter"

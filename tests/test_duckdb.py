@@ -125,7 +125,6 @@ def test_user_add():
         dt,
         pd.DataFrame({"User - iD": [1555], "FirstName": ["Hansueli"]}),
         schema_mode="merge",
-        engine="rust",
         mode="append",
     )
     dt.update_incremental()
