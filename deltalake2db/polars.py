@@ -182,7 +182,8 @@ def _get_type(
         return pl.Null
     elif dtype_str in ["timestampNtz", "timestamp_ntz"]:
         return settings.timestamp_ntz_type
-    raise NotImplementedError(f"{dtype_str} not supported in polars currently")
+    else:
+        return pl.Object
 
 
 def get_polars_schema(
