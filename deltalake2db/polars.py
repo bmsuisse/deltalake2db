@@ -150,7 +150,7 @@ def _get_type(
     if isinstance(dtype, ArrayType):
         return pl.List(_get_type(dtype.element_type, physical, settings))
     if isinstance(dtype, MapType):
-        raise NotImplementedError("MapType not supported in polars")
+        return pl.Object  # Polars does not support MapType directly
 
     dtype_str = str(dtype.type)
     if dtype_str == "string":
