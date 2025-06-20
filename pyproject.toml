@@ -1,6 +1,6 @@
 [project]
 name = "deltalake2db"
-version = "0.9.0"
+version = "0.9.1"
 description = ""
 authors = [{ name = "Adrian Ehrsam", email = "adrian.ehrsam@bmsuisse.ch" }]
 dependencies = [
@@ -39,7 +39,7 @@ dev = [
     "duckdb >=1.0.0,<2",
     "ruff >=0.4.3",
     "adlfs >=2024.4.1,<2025",
-    "pyarrow-stubs>=17.16",
+    "arro3-core>=0.5.1",
 ]
 test = [
     "pytest-cov >=4.1.0,<5",
@@ -51,4 +51,6 @@ test = [
     "python-dotenv >=1.0.1,<2",
     "pandas >=1.4.2",
     "azure-identity >=1.16.0,<2",
+    "pyarrow>=20.0.0",
+    "pyarrow-stubs>=19.4",
 ]

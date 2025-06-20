@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Callable, Optional, Union
 from deltalake import DataType, Field
 from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
 import sqlglot.expressions as ex
+from deltalake2db.arrow_utils import to_pylist
 from deltalake2db.azure_helper import (
     get_storage_options_fsspec,
     get_storage_options_object_store,
@@ -424,7 +425,7 @@ def get_sql_for_delta_expr(
             file_selects: list[ex.Select] = []
 
             delta_fields = dt.schema().fields
-            for ac in dt.get_add_actions(flatten=True).to_pylist():
+            for ac in to_pylist(dt.get_add_actions(flatten=True)):
                 if (
                     conditions is not None
                     and isinstance(conditions, dict)
@@ -487,7 +488,9 @@ def get_sql_for_delta_expr(
                     else:
                         cols_sql.append(ex.Null().as_(field_name))
 
-                select_pq = ex.select(*cols_sql).from_(
+                select_pq = ex.select(
+                    *cols_sql
+                ).from_(
                     read_parquet(ex.convert(fullpath))
                 )  # "SELECT " + ", ".join(cols_sql) + " FROM read_parquet('" + fullpath + "')"
                 file_selects.append(select_pq)

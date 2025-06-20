@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, Union, Optional, Callable, overload
 
+from deltalake2db.arrow_utils import to_pylist
 from deltalake2db.azure_helper import (
     get_storage_options_object_store,
     get_storage_options_fsspec,
@@ -181,7 +182,8 @@ def _get_type(
         return pl.Null
     elif dtype_str in ["timestampNtz", "timestamp_ntz"]:
         return settings.timestamp_ntz_type
-    raise NotImplementedError(f"{dtype_str} not supported in polars currently")
+    else:
+        return pl.Object
 
 
 def get_polars_schema(
@@ -321,7 +323,7 @@ def scan_delta_union(
         pyarrow_opts = None
         storage_options_for_fsspec = None
 
-    for ac in delta_table.get_add_actions(flatten=True).to_pylist():
+    for ac in to_pylist(delta_table.get_add_actions(flatten=True)):
         if conditions is not None and _can_filter(ac, conditions):
             continue
         fullpath = os.path.join(delta_table.table_uri, ac["path"]).replace("\\", "/")
