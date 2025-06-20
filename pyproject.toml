@@ -1,6 +1,6 @@
 [project]
 name = "deltalake2db"
-version = "0.9.1"
+version = "0.9.2"
 description = ""
 authors = [{ name = "Adrian Ehrsam", email = "adrian.ehrsam@bmsuisse.ch" }]
 dependencies = [
