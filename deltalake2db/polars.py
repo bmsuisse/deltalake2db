@@ -150,7 +150,18 @@ def _get_type(
     if isinstance(dtype, ArrayType):
         return pl.List(_get_type(dtype.element_type, physical, settings))
     if isinstance(dtype, MapType):
-        return pl.Object  # Polars does not support MapType directly
+        return pl.List(
+            pl.Struct(
+                [
+                    pl.Field(
+                        "key", _get_type(dtype.key_type, physical, settings=settings)
+                    ),
+                    pl.Field(
+                        "value", _get_type(dtype.key_type, physical, settings=settings)
+                    ),
+                ]
+            )
+        )  # Polars models maps as structs with "key" and "value" fields
 
     dtype_str = str(dtype.type)
     if dtype_str == "string":

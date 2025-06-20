@@ -44,7 +44,7 @@ def _collect(df: Union[pl.DataFrame, pl.LazyFrame]):
 @pytest.mark.parametrize("use_pyarrow", [True, False])
 def test_user_add(use_pyarrow):
     import shutil
-    import pandas as pd
+    import pyarrow as pa
 
     shutil.rmtree("tests/data/_user3", ignore_errors=True)
     shutil.copytree("tests/data/user", "tests/data/_user3")
@@ -57,12 +57,30 @@ def test_user_add(use_pyarrow):
         engine_args = {"engine": "rust"}
     else:
         engine_args = {}
+    data = [
+        {
+            "User - iD": 1555,
+            "FirstName": "Hansueli",
+            "metadata": {"key1": "value1", "key2": "value2"},
+        }
+    ]
+    schema = pa.schema(
+        [
+            pa.field("User - iD", pa.int64()),
+            pa.field("FirstName", pa.string()),
+            pa.field(
+                "metadata",
+                pa.map_(pa.string(), pa.string()),
+            ),
+        ]
+    )
+    table = pa.Table.from_pylist(data, schema=schema)
 
     write_deltalake(
         dt,
-        pd.DataFrame({"User - iD": [1555], "FirstName": ["Hansueli"]}),
-        schema_mode="merge",
-        mode="append",
+        table,
+        schema_mode="overwrite",
+        mode="overwrite",
         **engine_args,  # type: ignore
     )
     dt.update_incremental()
