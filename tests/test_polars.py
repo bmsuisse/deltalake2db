@@ -53,11 +53,17 @@ def test_user_add(use_pyarrow):
     from deltalake.writer import write_deltalake
     from deltalake import __version__ as deltalake_version
 
+    if deltalake_version.startswith("0."):
+        engine_args = {"engine": "rust"}
+    else:
+        engine_args = {}
+
     write_deltalake(
         dt,
         pd.DataFrame({"User - iD": [1555], "FirstName": ["Hansueli"]}),
         schema_mode="merge",
         mode="append",
+        **engine_args,  # type: ignore
     )
     dt.update_incremental()
 
