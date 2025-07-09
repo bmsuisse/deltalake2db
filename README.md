@@ -3,6 +3,12 @@
 This is a simple project that uses Metadata from `deltalake` package to provide methods to read Delta Lake Tables
 to either Polars or DuckDB with better Protocol Support as the main `deltalake` package.
 
+Usually you will want to use the deltalake extra, so install like this:
+
+`uv add deltalake2db[deltalake]`
+
+To only way to use this package without the extra is to use DuckDB with parameter `use_delta_ext=True`, which justs uses the delta extension
+
 ## Use with Duckdb
 
 Install `deltalake2db` and `duckdb` using pip/uv/poetry/whatever you use.

@@ -1,17 +1,20 @@
 from typing import Union, Optional, Callable, TYPE_CHECKING
 from pathlib import Path
-from deltalake import DeltaTable
+
 
 if TYPE_CHECKING:
     from azure.core.credentials import TokenCredential
+    from deltalake import DeltaTable
 
 
 def get_delta_table(
-    uri_or_table: Union[str, Path, DeltaTable],
+    uri_or_table: "Union[str, Path, DeltaTable]",
     storage_options: Optional[dict] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
 ) -> DeltaTable:
+    from deltalake import DeltaTable
+
     base_path = (
         uri_or_table.table_uri
         if isinstance(uri_or_table, DeltaTable)
