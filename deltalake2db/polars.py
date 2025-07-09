@@ -55,7 +55,7 @@ def _get_expr(
     dtype: "DataType",
     meta: "Optional[Field]",
     parquet_field: "Optional[pl.PolarsDataType]",
-    settings: PolarsSettings,
+    settings: "PolarsSettings",
 ) -> "pl.Expr":
     import polars as pl
     from deltalake.schema import StructType, ArrayType, MapType
@@ -134,7 +134,7 @@ def _get_expr(
 
 
 def _get_type(
-    dtype: "DataType", physical: bool, settings: PolarsSettings
+    dtype: "DataType", physical: bool, settings: "PolarsSettings"
 ) -> "Union[pl.DataType, type[pl.DataType]]":
     import polars as pl
     from deltalake.schema import StructType, ArrayType, MapType
@@ -204,11 +204,14 @@ def _get_type(
 def get_polars_schema(
     delta_table: "Union[DeltaTable, Path, str]",
     physical_name: bool = False,
-    settings: PolarsSettings = PolarsSettings(),
+    settings: "Optional[PolarsSettings]" = None,
 ) -> "pl.Schema":
     from .protocol_check import check_is_supported
     import polars as pl
     from deltalake import DeltaTable
+
+    if settings is None:
+        settings = PolarsSettings()
 
     if isinstance(delta_table, Path) or isinstance(delta_table, str):
         delta_table = DeltaTable(delta_table)
@@ -269,7 +272,7 @@ def scan_delta_union(
     storage_options: Optional[dict] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
-    settings=PolarsSettings(),
+    settings: "Optional[PolarsSettings]" = None,
 ) -> "Union[pl.LazyFrame, pl.DataFrame]": ...
 
 
@@ -279,12 +282,15 @@ def scan_delta_union(
     storage_options: Optional[dict] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
-    settings=PolarsSettings(),
+    settings: "Optional[PolarsSettings]" = None,
 ) -> "Union[pl.LazyFrame, pl.DataFrame]":
     import polars as pl
     import polars.datatypes as pldt
     from .protocol_check import check_is_supported
     from deltalake import DeltaTable
+
+    if settings is None:
+        settings = PolarsSettings()
 
     if isinstance(delta_table, Path) or isinstance(delta_table, str):
         path_for_delta, storage_options_for_delta = get_storage_options_object_store(
