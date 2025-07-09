@@ -12,7 +12,7 @@ def get_delta_table(
     storage_options: Optional[dict] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
-) -> DeltaTable:
+) -> "DeltaTable":
     from deltalake import DeltaTable
 
     base_path = (
