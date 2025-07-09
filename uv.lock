@@ -622,11 +622,13 @@ name = "deltalake2db"
 version = "0.10.0"
 source = { editable = "." }
 dependencies = [
-    { name = "azure-identity" },
     { name = "sqlglot" },
 ]
 
 [package.optional-dependencies]
+azure = [
+    { name = "azure-identity" },
+]
 deltalake = [
     { name = "deltalake" },
 ]
@@ -656,11 +658,11 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "azure-identity", specifier = ">=1.16.0,<2" },
+    { name = "azure-identity", marker = "extra == 'azure'", specifier = ">=1.16.0,<2" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.16.1,!=0.18.2,<0.19.0" },
     { name = "sqlglot", specifier = ">=22.2.1" },
 ]
-provides-extras = ["deltalake"]
+provides-extras = ["deltalake", "azure"]
 
 [package.metadata.requires-dev]
 dev = [

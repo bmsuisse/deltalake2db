@@ -3,12 +3,13 @@ name = "deltalake2db"
 version = "0.10.0"
 description = ""
 authors = [{ name = "Adrian Ehrsam", email = "adrian.ehrsam@bmsuisse.ch" }]
-dependencies = ["sqlglot >=22.2.1", "azure-identity >=1.16.0,<2"]
+dependencies = ["sqlglot >=22.2.1"]
 
 requires-python = "~=3.9"
 
 [project.optional-dependencies]
 deltalake = ["deltalake >=0.16.1,<0.19.0,!=0.18.2"]
+azure = ["azure-identity >=1.16.0,<2"]
 
 [project.scripts]
 
