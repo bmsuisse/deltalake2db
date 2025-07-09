@@ -11,31 +11,49 @@ def test_col_mapping(use_delta_ext):
 
     from deltalake2db import get_sql_for_delta
 
+    if (
+        use_delta_ext
+    ):  # see https://github.com/duckdb/duckdb-delta/issues/50#issuecomment-2730119786
+        select = ["Super Name", "Company Very Short", "age", "new_name"]
+    else:
+        select = None
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(dt, duck_con=con, use_delta_ext=use_delta_ext)
+        sql = get_sql_for_delta(
+            dt, duck_con=con, use_delta_ext=use_delta_ext, select=select
+        )
         print(sql)
         con.execute("create view delta_table as " + sql)
 
         df = pl.from_arrow(con.execute("select * from delta_table").fetch_arrow_table())
         print(df)
-
-    assert isinstance(df.schema["main_coord"], pl.Struct)
-    fields = df.schema["main_coord"].fields
-    assert "lat" in [f.name for f in fields]
-    assert "lon" in [f.name for f in fields]
+    if not use_delta_ext:
+        assert isinstance(df.schema["main_coord"], pl.Struct)
+        fields = df.schema["main_coord"].fields
+        assert "lat" in [f.name for f in fields]
+        assert "lon" in [f.name for f in fields]
 
     assert isinstance(df.schema["age"], pl.List)
     assert isinstance(df.schema["age"].inner, pl.Int64)
-    assert df.schema == OrderedDict(
-        [
-            ("Super Name", pl.String),
-            ("Company Very Short", pl.String),
-            ("main_coord", pl.Struct({"lat": pl.Float64, "lon": pl.Float64})),
-            ("coords", pl.List(pl.Struct({"lat": pl.Float64, "lon": pl.Float64}))),
-            ("age", pl.List(pl.Int64)),
-            ("new_name", pl.String),
-        ]
-    )
+    if not use_delta_ext:
+        assert df.schema == OrderedDict(
+            [
+                ("Super Name", pl.String),
+                ("Company Very Short", pl.String),
+                ("main_coord", pl.Struct({"lat": pl.Float64, "lon": pl.Float64})),
+                ("coords", pl.List(pl.Struct({"lat": pl.Float64, "lon": pl.Float64}))),
+                ("age", pl.List(pl.Int64)),
+                ("new_name", pl.String),
+            ]
+        )
+    else:
+        assert df.schema == OrderedDict(
+            [
+                ("Super Name", pl.String),
+                ("Company Very Short", pl.String),
+                ("age", pl.List(pl.Int64)),
+                ("new_name", pl.String),
+            ]
+        )
 
     as_py_rows = df.rows(named=True)
     print(as_py_rows)

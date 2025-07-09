@@ -328,6 +328,7 @@ def create_view_for_delta(
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     use_fsspec: bool = False,
     use_delta_ext=False,
+    select: "Optional[list[str]]" = None,
 ):
     sql = get_sql_for_delta(
         delta_table,
@@ -337,6 +338,7 @@ def create_view_for_delta(
         get_credential=get_credential,
         use_fsspec=use_fsspec,
         use_delta_ext=use_delta_ext,
+        select=select,
     )
     assert '"' not in view_name
     if overwrite:
