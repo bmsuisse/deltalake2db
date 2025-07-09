@@ -1,8 +1,6 @@
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional, Union
-from deltalake import DataType, Field
-from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
 import sqlglot.expressions as ex
 from deltalake2db.arrow_utils import to_pylist
 from deltalake2db.azure_helper import (
@@ -18,6 +16,8 @@ if TYPE_CHECKING:
     from deltalake import DeltaTable
     from azure.core.credentials import TokenCredential
     import duckdb
+    from deltalake import DataType, Field
+    from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
 
 
 def _cast(s: ex.Expression, t: Optional[ex.DATA_TYPE]):
@@ -29,7 +29,7 @@ def _cast(s: ex.Expression, t: Optional[ex.DATA_TYPE]):
 def _dummy_expr(
     field_type: "PrimitiveType | StructType | ArrayType | MapType",
 ) -> ex.Expression:
-    from deltalake.schema import PrimitiveType
+    from deltalake.schema import PrimitiveType, StructType, ArrayType, MapType
 
     if isinstance(field_type, PrimitiveType):
         if str(field_type).startswith("decimal("):
@@ -65,11 +65,13 @@ def _dummy_expr(
 def _get_expr(
     base_expr: "ex.Expression|None",
     dtype: "DataType",
-    meta: Optional[Field],
+    meta: "Optional[Field]",
     alias=True,
     *,
     counter: int = 0,
 ) -> "ex.Expression":
+    from deltalake.schema import StructType, ArrayType
+
     pn = (
         meta.metadata.get("delta.columnMapping.physicalName", meta.name)
         if meta
@@ -326,6 +328,7 @@ def create_view_for_delta(
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     use_fsspec: bool = False,
     use_delta_ext=False,
+    select: "Optional[list[str]]" = None,
 ):
     sql = get_sql_for_delta(
         delta_table,
@@ -335,6 +338,7 @@ def create_view_for_delta(
         get_credential=get_credential,
         use_fsspec=use_fsspec,
         use_delta_ext=use_delta_ext,
+        select=select,
     )
     assert '"' not in view_name
     if overwrite:
@@ -359,23 +363,23 @@ def get_sql_for_delta_expr(
     use_fsspec=False,
     use_delta_ext=False,
 ) -> ex.Select:
-    from deltalake import DeltaTable
     from .sql_utils import read_parquet, union, filter_via_dict
 
-    base_path = (
-        table_or_path.table_uri
-        if isinstance(table_or_path, DeltaTable)
-        else (
-            table_or_path
-            if isinstance(table_or_path, str)
-            else str(table_or_path.absolute())
-        )
-    )
+    if isinstance(table_or_path, str):
+        base_path = table_or_path
+    elif isinstance(table_or_path, Path):
+        base_path = str(table_or_path.absolute())
+    else:
+        from deltalake import DeltaTable
+
+        assert isinstance(table_or_path, DeltaTable)
+        base_path = table_or_path.table_uri
+        if storage_options is None:
+            storage_options = table_or_path._storage_options
+
     base_path = base_path.removesuffix("/")
     is_azure = base_path.startswith("az://") or base_path.startswith("abfss://")
     account_name_path = get_account_name_from_path(base_path) if is_azure else None
-    if storage_options is None and isinstance(table_or_path, DeltaTable):
-        storage_options = table_or_path._storage_options
 
     conds = filter_via_dict(conditions) if isinstance(conditions, dict) else conditions
     owns_con = False
@@ -404,6 +408,9 @@ def get_sql_for_delta_expr(
 
     try:
         if not use_delta_ext:
+            from deltalake import DeltaTable
+            from deltalake.schema import PrimitiveType
+
             if isinstance(table_or_path, Path) or isinstance(table_or_path, str):
                 path_for_delta, storage_options_for_delta = (
                     get_storage_options_object_store(
@@ -420,7 +427,6 @@ def get_sql_for_delta_expr(
 
             check_is_supported(dt)
             delta_table_cte_name = delta_table_cte_name or sql_prefix + "_delta_table"
-            from deltalake.schema import PrimitiveType
 
             file_selects: list[ex.Select] = []
 
@@ -528,7 +534,15 @@ def get_sql_for_delta_expr(
                 se.with_(file_sql.alias, file_sql.args["this"], copy=False)
                 return se
         else:
-            se = ex.select(ex.Star()).from_(
+            if select:
+                select_exprs = [
+                    ex.column(s, quoted=True) if isinstance(s, str) else s
+                    for s in select
+                ]
+            else:
+                select_exprs = [ex.Star()]
+
+            se = ex.select(*select_exprs).from_(
                 ex.func("delta_scan", ex.convert(base_path))
             )
             if distinct:

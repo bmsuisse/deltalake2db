@@ -1,5 +1,7 @@
-from deltalake import DeltaTable
-from deltalake.exceptions import DeltaProtocolError
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from deltalake import DeltaTable
 
 
 supported_reader_features = [
@@ -8,7 +10,7 @@ supported_reader_features = [
 ]  # not: deletionVectors, v2Checkpoint
 
 
-def is_protocol_supported(dt: DeltaTable):
+def is_protocol_supported(dt: "DeltaTable"):
     prot = dt.protocol()
     if prot.min_reader_version <= 3:
         return True
@@ -19,7 +21,9 @@ def is_protocol_supported(dt: DeltaTable):
     return not any(un_supported)
 
 
-def check_is_supported(dt: DeltaTable):
+def check_is_supported(dt: "DeltaTable"):
+    from deltalake.exceptions import DeltaProtocolError
+
     prot = dt.protocol()
     if prot.min_reader_version <= 3:
         return

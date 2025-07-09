@@ -12,10 +12,12 @@ if TYPE_CHECKING:
     import polars as pl
     import polars.schema as pl_schema
     from azure.core.credentials import TokenCredential
-from deltalake import DeltaTable, Field, DataType
-from deltalake.schema import StructType, ArrayType, MapType
 from collections import OrderedDict
 import os
+
+if TYPE_CHECKING:
+    from deltalake import DeltaTable
+    from deltalake.schema import DataType, Field
 
 
 class PolarsSettings:
@@ -51,11 +53,12 @@ class PolarsSettings:
 def _get_expr(
     base_expr: "Union[pl.Expr,None]",
     dtype: "DataType",
-    meta: Optional[Field],
+    meta: "Optional[Field]",
     parquet_field: "Optional[pl.PolarsDataType]",
     settings: PolarsSettings,
 ) -> "pl.Expr":
     import polars as pl
+    from deltalake.schema import StructType, ArrayType, MapType
 
     if parquet_field is None:
         return (
@@ -134,6 +137,7 @@ def _get_type(
     dtype: "DataType", physical: bool, settings: PolarsSettings
 ) -> "Union[pl.DataType, type[pl.DataType]]":
     import polars as pl
+    from deltalake.schema import StructType, ArrayType, MapType
 
     if isinstance(dtype, StructType):
         return pl.Struct(
@@ -198,12 +202,13 @@ def _get_type(
 
 
 def get_polars_schema(
-    delta_table: Union[DeltaTable, Path, str],
+    delta_table: "Union[DeltaTable, Path, str]",
     physical_name: bool = False,
     settings: PolarsSettings = PolarsSettings(),
 ) -> "pl.Schema":
     from .protocol_check import check_is_supported
     import polars as pl
+    from deltalake import DeltaTable
 
     if isinstance(delta_table, Path) or isinstance(delta_table, str):
         delta_table = DeltaTable(delta_table)
@@ -249,7 +254,7 @@ def _cast_schema(ds: "pl.DataFrame", schema: "pl_schema.Schema") -> "pl.DataFram
 
 @overload
 def scan_delta_union(
-    delta_table: Union[DeltaTable, Path, str],
+    delta_table: "Union[DeltaTable, Path, str]",
     conditions: Optional[dict] = None,
     storage_options: Optional[dict] = None,
     *,
@@ -259,7 +264,7 @@ def scan_delta_union(
 
 @overload
 def scan_delta_union(
-    delta_table: Union[DeltaTable, Path, str],
+    delta_table: "Union[DeltaTable, Path, str]",
     conditions: Optional[dict] = None,
     storage_options: Optional[dict] = None,
     *,
@@ -269,7 +274,7 @@ def scan_delta_union(
 
 
 def scan_delta_union(
-    delta_table: Union[DeltaTable, Path, str],
+    delta_table: "Union[DeltaTable, Path, str]",
     conditions: Optional[dict] = None,
     storage_options: Optional[dict] = None,
     *,
@@ -279,6 +284,7 @@ def scan_delta_union(
     import polars as pl
     import polars.datatypes as pldt
     from .protocol_check import check_is_supported
+    from deltalake import DeltaTable
 
     if isinstance(delta_table, Path) or isinstance(delta_table, str):
         path_for_delta, storage_options_for_delta = get_storage_options_object_store(
