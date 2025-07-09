@@ -5,13 +5,14 @@ import polars as pl
 import pytest
 
 
-def test_col_mapping():
+@pytest.mark.parametrize("use_delta_ext", [False, True])
+def test_col_mapping(use_delta_ext):
     dt = DeltaTable("tests/data/faker2")
 
     from deltalake2db import get_sql_for_delta
 
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(dt, duck_con=con)
+        sql = get_sql_for_delta(dt, duck_con=con, use_delta_ext=use_delta_ext)
         print(sql)
         con.execute("create view delta_table as " + sql)
 
