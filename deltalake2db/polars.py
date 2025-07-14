@@ -255,6 +255,10 @@ def _cast_schema(ds: "pl.DataFrame", schema: "pl_schema.Schema") -> "pl.DataFram
     return ds.select(exprs)
 
 
+def _versiontuple(v):
+    return tuple(map(int, (v.split("."))))
+
+
 @overload
 def scan_delta_union(
     delta_table: "Union[DeltaTable, Path, str]",
@@ -389,6 +393,15 @@ def scan_delta_union(
 
         base_ds = (
             pl.scan_parquet(
+                fullpath,
+                storage_options=delta_table._storage_options,
+                glob=False,
+                schema=physical_schema_no_parts,
+                missing_columns="insert",
+                extra_columns="ignore",
+            )
+            if _versiontuple(pl.__version__) >= (1, 31)
+            else pl.scan_parquet(
                 fullpath,
                 storage_options=delta_table._storage_options,
                 glob=False,
