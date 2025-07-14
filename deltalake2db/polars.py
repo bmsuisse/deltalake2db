@@ -394,6 +394,7 @@ def scan_delta_union(
                 glob=False,
                 schema=physical_schema_no_parts,
                 missing_columns="insert",
+                extra_columns="ignore",
             )
             if ds is None
             else _cast_schema(ds, physical_schema_no_parts)
