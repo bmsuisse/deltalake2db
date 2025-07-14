@@ -393,7 +393,7 @@ def scan_delta_union(
                 storage_options=delta_table._storage_options,
                 glob=False,
                 schema=physical_schema_no_parts,
-                allow_missing_columns=True,
+                missing_columns="insert",
             )
             if ds is None
             else _cast_schema(ds, physical_schema_no_parts)
