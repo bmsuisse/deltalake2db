@@ -259,9 +259,6 @@ def _versiontuple(v):
     return tuple(map(int, (v.split("."))))
 
 
-pl_version = _versiontuple(pl.__version__)
-
-
 @overload
 def scan_delta_union(
     delta_table: "Union[DeltaTable, Path, str]",
