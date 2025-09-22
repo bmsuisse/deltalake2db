@@ -23,7 +23,7 @@ PrimitiveType = Literal[
     "binary",
     "date",
     "timestamp",
-    "timestamp without time zone",
+    "timestamp_ntz",
     "decimal",
 ]
 
@@ -126,6 +126,8 @@ def process_meta_data(actions: dict, state: MetaState, version: int):
 
 
 class MetadataEngine(Protocol):
+    def list_files(self, path: str) -> Sequence[str]: ...
+
     def read_jsonl(self, path: str) -> Sequence[dict]: ...
 
     def read_parquet(self, path: str) -> Sequence[dict]: ...
@@ -135,6 +137,10 @@ class PyArrowEngine(MetadataEngine):
     def __init__(self, fs: "Optional[pafs.FileSystem]" = None) -> None:
         super().__init__()
         self.fs = fs or pafs.LocalFileSystem()
+
+    def list_files(self, path: str) -> Sequence[str]:
+        info = self.fs.get_file_info(pafs.FileSelector(path, recursive=True))
+        return [f.path for f in info if f.type == pafs.FileType.File]
 
     def read_jsonl(self, path: str) -> Sequence[dict]:
         import json
@@ -169,6 +175,11 @@ class PolarsEngine(MetadataEngine):
                 raise FileNotFoundError from e
             raise
 
+    def list_files(self, path: str) -> Sequence[str]:
+        import os
+
+        return os.listdir(path)
+
     def read_parquet(self, path: str) -> Sequence[dict]:
         try:
             import polars as pl
@@ -187,6 +198,14 @@ class DuckDBEngine(MetadataEngine):
     def __init__(self, con: "duckdb.DuckDBPyConnection") -> None:
         super().__init__()
         self.con = con
+
+    def list_files(self, path: str) -> Sequence[str]:
+        q = f"SELECT * FROM list_files('{path}')"
+        with self.con.cursor() as cur:
+            cur.execute(q)
+            assert cur.description is not None
+            desc = [d[0] for d in cur.description]
+            return [row[desc.index("file_path")] for row in cur.fetchall()]
 
     def read_jsonl(self, path: str) -> Sequence[dict]:
         import duckdb
