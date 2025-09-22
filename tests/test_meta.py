@@ -15,3 +15,4 @@ def test_last_write_time():
             tz=timezone.utc,
         )
         assert meta.last_write_time == t2
+        assert meta.version == dt.version()

@@ -11,6 +11,7 @@ import json
 
 if TYPE_CHECKING:
     import duckdb
+    import pyarrow.fs as pafs
 
 PrimitiveType = Literal[
     "string",
@@ -83,6 +84,7 @@ class MetaState:
     protocol: Union[DeltaProtocol, None] = None
     add_actions: dict[str, dict] = {}
     last_commit_info: Union[dict, None] = None
+    version: int = 0
 
     @property
     def last_write_time(self):
@@ -107,7 +109,7 @@ class MetaState:
         self.add_actions = {}
 
 
-def process_meta_data(actions: dict, state: MetaState):
+def process_meta_data(actions: dict, state: MetaState, version: int):
     if actions.get("metaData"):
         state.last_metadata = actions["metaData"]
     if actions.get("protocol"):
@@ -119,14 +121,36 @@ def process_meta_data(actions: dict, state: MetaState):
         state.last_commit_info = actions["commitInfo"]
     if actions.get("remove"):
         path = actions["remove"]["path"]
-        if path in state.add_actions:
-            del state.add_actions[path]
+        state.add_actions.pop(path, None)
+    state.version = version
 
 
 class MetadataEngine(Protocol):
     def read_jsonl(self, path: str) -> Sequence[dict]: ...
 
     def read_parquet(self, path: str) -> Sequence[dict]: ...
+
+
+class PyArrowEngine(MetadataEngine):
+    def __init__(self, fs: "Optional[pafs.FileSystem]" = None) -> None:
+        super().__init__()
+        self.fs = fs or pafs.LocalFileSystem()
+
+    def read_jsonl(self, path: str) -> Sequence[dict]:
+        import json
+
+        result = []
+        with self.fs.open_input_stream(path) as f:
+            for line in f.readlines():
+                result.append(json.loads(line))
+        return result
+
+    def read_parquet(self, path: str) -> Sequence[dict]:
+        import pyarrow.parquet as pq
+
+        with self.fs.open_input_stream(path) as f:
+            table = pq.read_table(f)
+            return table.to_pylist()
 
 
 class PolarsEngine(MetadataEngine):
@@ -225,16 +249,21 @@ def get_meta(
     if checkpoint:
         check_point_version = checkpoint.get("version", 0)
         if version is not None and version < check_point_version:
-            start_version = 0
-        else:
+            check_point_version = (
+                version - version % 10
+            )  # nearest lower multiple of 10, since most engines write checkpoints every 10 versions
+
+        try:
             check_point_file = (
                 delta_path.rstrip("/")
                 + f"/_delta_log/{_delta_fn(check_point_version)}.checkpoint.parquet"
             )
             check_point_data = engine.read_parquet(check_point_file)
             for action in check_point_data:
-                process_meta_data(action, state)
+                process_meta_data(action, state, check_point_version)
             start_version = check_point_version + 1
+        except FileNotFoundError:
+            start_version = 0
     else:
         start_version = 0
     current_version = start_version
@@ -247,6 +276,6 @@ def get_meta(
         except FileNotFoundError:
             break
         for action in commit_data:
-            process_meta_data(action, state)
+            process_meta_data(action, state, current_version)
         current_version += 1
     return state
