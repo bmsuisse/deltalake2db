@@ -310,7 +310,9 @@ def scan_delta_union(
     path_for_delta, storage_options_for_delta = get_storage_options_object_store(
         delta_table, storage_options, get_credential
     )
-    delta_meta = get_meta(PolarsEngine(storage_options_for_delta), str(delta_table))
+    delta_meta = get_meta(
+        PolarsEngine(storage_options_for_delta), str(delta_table), version=version
+    )
     check_is_supported(delta_meta)
     all_ds: Union[list[pl.LazyFrame], list[pl.DataFrame]] = []
     assert delta_meta.schema is not None

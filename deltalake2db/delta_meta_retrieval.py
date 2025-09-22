@@ -140,6 +140,8 @@ class PolarsEngine(MetadataEngine):
             df = pl.read_parquet(path, storage_options=self.storage_options)
             return df.to_dicts()
         except OSError as e:
+            if "BlobNotFound" in str(e):
+                raise FileNotFoundError from e
             if "404" in str(e) or "No such file or directory" in str(e):
                 raise FileNotFoundError from e
             raise
@@ -161,6 +163,8 @@ class DuckDBEngine(MetadataEngine):
                 desc = [d[0] for d in cur.description]
                 return [dict(zip(desc, row)) for row in cur.fetchall()]
             except duckdb.IOException as e:
+                if "BlobNotFound" in str(e):
+                    raise FileNotFoundError from e
                 if "No files found" in str(e):
                     raise FileNotFoundError from e
                 raise

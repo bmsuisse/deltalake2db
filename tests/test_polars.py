@@ -99,7 +99,9 @@ def test_user_add(use_pyarrow):
     ).to_dicts()
     oc = _collect(
         polars_scan_delta(
-            dt_o.table_uri, settings=PolarsSettings(use_pyarrow=use_pyarrow)
+            dt_o.table_uri,
+            settings=PolarsSettings(use_pyarrow=use_pyarrow),
+            version=old_version,
         ).select(pl.col("User - iD"))
     ).to_dicts()
     diff = [o["User - iD"] for o in nc if o not in oc]
