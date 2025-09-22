@@ -209,6 +209,7 @@ def get_polars_schema(
     physical_name: bool = False,
     settings: "Optional[PolarsSettings]" = None,
     storage_options: "Optional[dict]" = None,
+    version: "Optional[int]" = None,
 ) -> "pl.Schema":
     from .protocol_check import check_is_supported
     import polars as pl
@@ -216,7 +217,9 @@ def get_polars_schema(
     if settings is None:
         settings = PolarsSettings()
 
-    delta_meta = get_meta(PolarsEngine(storage_options), str(delta_table))
+    delta_meta = get_meta(
+        PolarsEngine(storage_options), str(delta_table), version=version
+    )
 
     check_is_supported(delta_meta)
     res_dict = OrderedDict()
@@ -272,6 +275,7 @@ def scan_delta_union(
     storage_options: Optional[dict] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
+    version: "Optional[int]" = None,
 ) -> "pl.LazyFrame": ...
 
 
@@ -283,6 +287,7 @@ def scan_delta_union(
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     settings: "Optional[PolarsSettings]" = None,
+    version: "Optional[int]" = None,
 ) -> "Union[pl.LazyFrame, pl.DataFrame]": ...
 
 
@@ -293,6 +298,7 @@ def scan_delta_union(
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     settings: "Optional[PolarsSettings]" = None,
+    version: "Optional[int]" = None,
 ) -> "Union[pl.LazyFrame, pl.DataFrame]":
     import polars as pl
     import polars.datatypes as pldt
@@ -315,6 +321,7 @@ def scan_delta_union(
         physical_name=True,
         settings=settings,
         storage_options=storage_options_for_delta,
+        version=version,
     )
     physical_schema_no_parts = physical_schema.copy()
 

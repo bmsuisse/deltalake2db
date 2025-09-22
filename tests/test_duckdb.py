@@ -171,7 +171,9 @@ def test_user_add():
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(con, dt.table_uri, "delta_table_n")
-        duckdb_create_view_for_delta(con, dt_o.table_uri, "delta_table_o")
+        duckdb_create_view_for_delta(
+            con, dt_o.table_uri, "delta_table_o", version=old_version
+        )
         con.execute(
             'select "User - iD" from delta_table_n except select "User - iD" from delta_table_o'
         )

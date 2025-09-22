@@ -123,16 +123,26 @@ class PolarsEngine(MetadataEngine):
         self.storage_options = storage_options
 
     def read_jsonl(self, path: str) -> Sequence[dict]:
-        import polars as pl
+        try:
+            import polars as pl
 
-        df = pl.read_ndjson(path, storage_options=self.storage_options)
-        return df.to_dicts()
+            df = pl.read_ndjson(path, storage_options=self.storage_options)
+            return df.to_dicts()
+        except OSError as e:
+            if "404" in str(e) or "No such file or directory" in str(e):
+                raise FileNotFoundError from e
+            raise
 
     def read_parquet(self, path: str) -> Sequence[dict]:
-        import polars as pl
+        try:
+            import polars as pl
 
-        df = pl.read_parquet(path, storage_options=self.storage_options)
-        return df.to_dicts()
+            df = pl.read_parquet(path, storage_options=self.storage_options)
+            return df.to_dicts()
+        except OSError as e:
+            if "404" in str(e) or "No such file or directory" in str(e):
+                raise FileNotFoundError from e
+            raise
 
 
 class DuckDBEngine(MetadataEngine):
@@ -141,20 +151,34 @@ class DuckDBEngine(MetadataEngine):
         self.con = con
 
     def read_jsonl(self, path: str) -> Sequence[dict]:
+        import duckdb
+
         q = f"SELECT * FROM read_json('{path}', format='newline_delimited')"
         with self.con.cursor() as cur:
-            cur.execute(q)
-            assert cur.description is not None
-            desc = [d[0] for d in cur.description]
-            return [dict(zip(desc, row)) for row in cur.fetchall()]
+            try:
+                cur.execute(q)
+                assert cur.description is not None
+                desc = [d[0] for d in cur.description]
+                return [dict(zip(desc, row)) for row in cur.fetchall()]
+            except duckdb.IOException as e:
+                if "No files found" in str(e):
+                    raise FileNotFoundError from e
+                raise
 
     def read_parquet(self, path: str) -> Sequence[dict]:
+        import duckdb
+
         q = f"SELECT * FROM read_parquet('{path}')"
         with self.con.cursor() as cur:
-            cur.execute(q)
-            assert cur.description is not None
-            desc = [d[0] for d in cur.description]
-            return [dict(zip(desc, row)) for row in cur.fetchall()]
+            try:
+                cur.execute(q)
+                assert cur.description is not None
+                desc = [d[0] for d in cur.description]
+                return [dict(zip(desc, row)) for row in cur.fetchall()]
+            except duckdb.IOException as e:
+                if "No files found" in str(e):
+                    raise FileNotFoundError from e
+                raise
 
 
 def _delta_fn(version: int) -> str:
@@ -172,7 +196,9 @@ def field_to_type(field: Field) -> DataType:
         return field["type"]
 
 
-def get_meta(engine: MetadataEngine, delta_path: str) -> MetaState:
+def get_meta(
+    engine: MetadataEngine, delta_path: str, *, version: Optional[int] = None
+) -> MetaState:
     try:
         checkpoint = engine.read_jsonl(
             delta_path.rstrip("/") + "/_delta_log/_last_checkpoint"
@@ -182,24 +208,29 @@ def get_meta(engine: MetadataEngine, delta_path: str) -> MetaState:
     state = MetaState()
     if checkpoint:
         check_point_version = checkpoint.get("version", 0)
-        check_point_file = (
-            delta_path.rstrip("/")
-            + f"/_delta_log/{_delta_fn(check_point_version)}.checkpoint.parquet"
-        )
-        check_point_data = engine.read_parquet(check_point_file)
-        for action in check_point_data:
-            process_meta_data(action, state)
-        start_version = check_point_version + 1
+        if version is not None and version < check_point_version:
+            start_version = 0
+        else:
+            check_point_file = (
+                delta_path.rstrip("/")
+                + f"/_delta_log/{_delta_fn(check_point_version)}.checkpoint.parquet"
+            )
+            check_point_data = engine.read_parquet(check_point_file)
+            for action in check_point_data:
+                process_meta_data(action, state)
+            start_version = check_point_version + 1
     else:
         start_version = 0
-    version = start_version
-    while True:
-        commit_file = delta_path.rstrip("/") + f"/_delta_log/{_delta_fn(version)}.json"
+    current_version = start_version
+    while version is None or current_version <= version:
+        commit_file = (
+            delta_path.rstrip("/") + f"/_delta_log/{_delta_fn(current_version)}.json"
+        )
         try:
             commit_data = engine.read_jsonl(commit_file)
         except FileNotFoundError:
             break
         for action in commit_data:
             process_meta_data(action, state)
-        version += 1
+        current_version += 1
     return state

@@ -335,6 +335,7 @@ def create_view_for_delta(
     use_fsspec: bool = False,
     use_delta_ext=False,
     select: "Optional[list[str]]" = None,
+    version: "Optional[int]" = None,
 ):
     sql = get_sql_for_delta(
         delta_table,
@@ -345,6 +346,7 @@ def create_view_for_delta(
         use_fsspec=use_fsspec,
         use_delta_ext=use_delta_ext,
         select=select,
+        version=version,
     )
     assert '"' not in view_name
     if overwrite:
@@ -368,6 +370,7 @@ def get_sql_for_delta_expr(
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     use_fsspec=False,
     use_delta_ext=False,
+    version: "Optional[int]" = None,
 ) -> ex.Select:
     from .sql_utils import read_parquet, union, filter_via_dict
 
@@ -409,7 +412,7 @@ def get_sql_for_delta_expr(
         if not use_delta_ext:
             from .protocol_check import check_is_supported
 
-            meta_state = get_meta(DuckDBEngine(duck_con), base_path)
+            meta_state = get_meta(DuckDBEngine(duck_con), base_path, version=version)
             check_is_supported(meta_state)
             delta_table_cte_name = delta_table_cte_name or sql_prefix + "_delta_table"
 
@@ -522,6 +525,7 @@ def get_sql_for_delta_expr(
                 se.with_(file_sql.alias, file_sql.args["this"], copy=False)
                 return se
         else:
+            assert version is None, "version is not supported with delta extension"
             if select:
                 select_exprs = [
                     ex.column(s, quoted=True) if isinstance(s, str) else s
@@ -558,6 +562,7 @@ def get_sql_for_delta(
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     use_fsspec: bool = False,
     use_delta_ext=False,
+    version: "Optional[int]" = None,
 ) -> str:
     expr = get_sql_for_delta_expr(
         table_or_path=dt,
@@ -572,6 +577,7 @@ def get_sql_for_delta(
         get_credential=get_credential,
         use_fsspec=use_fsspec,
         use_delta_ext=use_delta_ext,
+        version=version,
     )
     if cte_wrap_name:
         suffix_sql = ex.select(ex.Star()).from_(cte_wrap_name).sql(dialect="duckdb")
