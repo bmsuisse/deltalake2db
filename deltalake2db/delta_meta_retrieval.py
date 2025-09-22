@@ -11,6 +11,7 @@ import json
 
 if TYPE_CHECKING:
     import duckdb
+    import pyarrow.fs as pafs
 
 PrimitiveType = Literal[
     "string",
@@ -128,6 +129,28 @@ class MetadataEngine(Protocol):
     def read_jsonl(self, path: str) -> Sequence[dict]: ...
 
     def read_parquet(self, path: str) -> Sequence[dict]: ...
+
+
+class PyArrowEngine(MetadataEngine):
+    def __init__(self, fs: "Optional[pafs.FileSystem]" = None) -> None:
+        super().__init__()
+        self.fs = fs or pafs.LocalFileSystem()
+
+    def read_jsonl(self, path: str) -> Sequence[dict]:
+        import json
+
+        result = []
+        with self.fs.open_input_stream(path) as f:
+            for line in f.readlines():
+                result.append(json.loads(line))
+        return result
+
+    def read_parquet(self, path: str) -> Sequence[dict]:
+        import pyarrow.parquet as pq
+
+        with self.fs.open_input_stream(path) as f:
+            table = pq.read_table(f)
+            return table.to_pylist()
 
 
 class PolarsEngine(MetadataEngine):
