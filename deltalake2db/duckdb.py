@@ -2,7 +2,6 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional, Union
 import sqlglot.expressions as ex
-from deltalake2db.arrow_utils import to_pylist
 from deltalake2db.azure_helper import (
     get_storage_options_fsspec,
     get_storage_options_object_store,
@@ -11,13 +10,18 @@ from deltalake2db.azure_helper import (
 )
 from deltalake2db.filter_by_meta import _can_filter
 import deltalake2db.sql_utils as squ
+from deltalake2db.delta_meta_retrieval import (
+    DataType,
+    DuckDBEngine,
+    get_meta,
+    field_to_type,
+    PrimitiveField,
+    Field,
+)
 
 if TYPE_CHECKING:
-    from deltalake import DeltaTable
     from azure.core.credentials import TokenCredential
     import duckdb
-    from deltalake import DataType, Field
-    from deltalake.schema import StructType, ArrayType, PrimitiveType, MapType
 
 
 def _cast(s: ex.Expression, t: Optional[ex.DATA_TYPE]):
@@ -27,39 +31,43 @@ def _cast(s: ex.Expression, t: Optional[ex.DATA_TYPE]):
 
 
 def _dummy_expr(
-    field_type: "PrimitiveType | StructType | ArrayType | MapType",
+    field_type: "DataType | PrimitiveField",
 ) -> ex.Expression:
-    from deltalake.schema import PrimitiveType, StructType, ArrayType, MapType
-
-    if isinstance(field_type, PrimitiveType):
+    if isinstance(field_type, str):
         if str(field_type).startswith("decimal("):
             cast_as = ex.DataType.build(str(field_type))
         else:
-            cast_as = type_map.get(field_type.type)
+            cast_as = type_map.get(field_type)
         return _cast(ex.Null(), cast_as)
-    elif isinstance(field_type, StructType):
+    elif field_type["type"] == "struct":
         return squ.struct(
             {
-                subfield.name: _dummy_expr(subfield.type)
-                for subfield in field_type.fields
+                subfield["name"]: _dummy_expr(subfield)
+                for subfield in field_type["fields"]
             }
         )
-    elif isinstance(field_type, ArrayType):
-        return ex.Array(expressions=[_dummy_expr(field_type.element_type)])
-    elif isinstance(field_type, MapType):
+    elif field_type["type"] == "array":
+        return ex.Array(expressions=[_dummy_expr(field_type["elementType"])])
+    elif field_type["type"] == "map":
         return ex.MapFromEntries(
             this=ex.Array(
                 expressions=[
                     ex.Tuple(
                         expressions=[
-                            _dummy_expr(field_type.key_type),
-                            _dummy_expr(field_type.value_type),
+                            _dummy_expr(field_type["keyType"]),
+                            _dummy_expr(field_type["valueType"]),
                         ]
                     )
                 ]
             )
         )
-    raise ValueError(f"Unsupported type {field_type}")
+    else:
+        field_type = field_type["type"]
+        if str(field_type).startswith("decimal("):
+            cast_as = ex.DataType.build(str(field_type))
+        else:
+            cast_as = type_map.get(field_type)
+        return _cast(ex.Null(), cast_as)
 
 
 def _get_expr(
@@ -70,64 +78,62 @@ def _get_expr(
     *,
     counter: int = 0,
 ) -> "ex.Expression":
-    from deltalake.schema import StructType, ArrayType
-
     pn = (
-        meta.metadata.get("delta.columnMapping.physicalName", meta.name)
+        meta.get("metadata", {}).get("delta.columnMapping.physicalName", meta["name"])
         if meta
         else None
     )
     if base_expr is None:
         assert pn is not None
         base_expr = ex.Column(this=pn)
-    if isinstance(dtype, StructType):
+    if isinstance(dtype, dict) and dtype["type"] == "struct":
         struct_expr = (
             ex.case()
             .when(base_expr.is_(ex.Null()), ex.Null())
             .else_(
                 squ.struct(
                     {
-                        subfield.name: _get_expr(
+                        subfield["name"]: _get_expr(
                             ex.Dot(
                                 this=base_expr,
                                 expression=ex.Identifier(
-                                    this=subfield.metadata.get(
+                                    this=subfield.get("metadata", {}).get(
                                         "delta.columnMapping.physicalName",
-                                        subfield.name,
+                                        subfield["name"],
                                     ),
                                     quoted=True,
                                 ),
                             ),
-                            subfield.type,
+                            field_to_type(subfield),
                             subfield,
                             alias=False,
                             counter=counter + 1,
                         )
-                        for subfield in dtype.fields
+                        for subfield in dtype["fields"]
                     }
                 )
             )
         )
         if alias and meta is not None:
-            return struct_expr.as_(meta.name)
+            return struct_expr.as_(meta["name"])
         return struct_expr
-    elif isinstance(dtype, ArrayType):
+    elif isinstance(dtype, dict) and dtype["type"] == "array":
         vl = squ.list_transform(
             "x_" + str(counter),
             base_expr,
             _get_expr(
                 ex.Identifier(this="x_" + str(counter), quoted=False),
-                dtype.element_type,
+                dtype["elementType"],
                 meta=meta,
                 alias=False,
                 counter=counter + 1,
             ),
         )
         if alias and meta is not None:
-            return vl.as_(meta.name)
+            return vl.as_(meta["name"])
         return vl
 
-    return base_expr.as_(meta.name) if meta is not None and alias else base_expr
+    return base_expr.as_(meta["name"]) if meta is not None and alias else base_expr
 
 
 def load_install_extension(con: "duckdb.DuckDBPyConnection", ext_name: str):
@@ -319,7 +325,7 @@ type_map = {
 
 def create_view_for_delta(
     con: "duckdb.DuckDBPyConnection",
-    delta_table: "Union[DeltaTable , Path , str]",
+    delta_table: "Union[Path , str]",
     view_name: str,
     overwrite=True,
     *,
@@ -329,6 +335,7 @@ def create_view_for_delta(
     use_fsspec: bool = False,
     use_delta_ext=False,
     select: "Optional[list[str]]" = None,
+    version: "Optional[int]" = None,
 ):
     sql = get_sql_for_delta(
         delta_table,
@@ -339,6 +346,7 @@ def create_view_for_delta(
         use_fsspec=use_fsspec,
         use_delta_ext=use_delta_ext,
         select=select,
+        version=version,
     )
     assert '"' not in view_name
     if overwrite:
@@ -348,7 +356,7 @@ def create_view_for_delta(
 
 
 def get_sql_for_delta_expr(
-    table_or_path: "Union[DeltaTable,Path , str]",
+    table_or_path: "Union[Path , str]",
     conditions: Union[Optional[dict], Sequence[ex.Expression], ex.Expression] = None,
     select: Union[Sequence[Union[str, ex.Expression]], None] = None,
     distinct=False,
@@ -362,20 +370,14 @@ def get_sql_for_delta_expr(
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     use_fsspec=False,
     use_delta_ext=False,
+    version: "Optional[int]" = None,
 ) -> ex.Select:
     from .sql_utils import read_parquet, union, filter_via_dict
 
     if isinstance(table_or_path, str):
         base_path = table_or_path
-    elif isinstance(table_or_path, Path):
-        base_path = str(table_or_path.absolute())
     else:
-        from deltalake import DeltaTable
-
-        assert isinstance(table_or_path, DeltaTable)
-        base_path = table_or_path.table_uri
-        if storage_options is None:
-            storage_options = table_or_path._storage_options
+        base_path = str(table_or_path.absolute())
 
     base_path = base_path.removesuffix("/")
     is_azure = base_path.startswith("az://") or base_path.startswith("abfss://")
@@ -408,30 +410,16 @@ def get_sql_for_delta_expr(
 
     try:
         if not use_delta_ext:
-            from deltalake import DeltaTable
-            from deltalake.schema import PrimitiveType
-
-            if isinstance(table_or_path, Path) or isinstance(table_or_path, str):
-                path_for_delta, storage_options_for_delta = (
-                    get_storage_options_object_store(
-                        table_or_path, storage_options, get_credential
-                    )
-                )
-
-                dt = DeltaTable(
-                    path_for_delta, storage_options=storage_options_for_delta
-                )
-            else:
-                dt = table_or_path
             from .protocol_check import check_is_supported
 
-            check_is_supported(dt)
+            meta_state = get_meta(DuckDBEngine(duck_con), base_path, version=version)
+            check_is_supported(meta_state)
             delta_table_cte_name = delta_table_cte_name or sql_prefix + "_delta_table"
 
             file_selects: list[ex.Select] = []
-
-            delta_fields = dt.schema().fields
-            for ac in to_pylist(dt.get_add_actions(flatten=True)):
+            assert meta_state.schema is not None
+            delta_fields = meta_state.schema["fields"]
+            for ac in meta_state.add_actions.values():
                 if (
                     conditions is not None
                     and isinstance(conditions, dict)
@@ -446,22 +434,22 @@ def get_sql_for_delta_expr(
                     cols: list[str] = [c[0] for c in cur.fetchall()]
                 cols_sql: list[ex.Expression] = []
                 for field in delta_fields:
-                    field_name = field.name
-                    phys_name = field.metadata.get(
+                    field_name = field["name"]
+                    phys_name = field.get("metadata", {}).get(
                         "delta.columnMapping.physicalName", field_name
                     )
 
                     cast_as = None
 
-                    if isinstance(field.type, PrimitiveType):
-                        if str(field.type).startswith("decimal("):
-                            cast_as = ex.DataType.build(str(field.type))
+                    if isinstance(field["type"], str):
+                        if str(field["type"]).startswith("decimal("):
+                            cast_as = ex.DataType.build(str(field["type"]))
                         else:
-                            cast_as = type_map.get(field.type.type)
-                    if "partition_values" in ac and phys_name in ac["partition_values"]:
+                            cast_as = type_map.get(field["type"])
+                    if "partitionValues" in ac and phys_name in ac["partitionValues"]:
                         cols_sql.append(
                             _cast(
-                                ex.convert(ac["partition_values"][phys_name]), cast_as
+                                ex.convert(ac["partitionValues"][phys_name]), cast_as
                             ).as_(field_name)
                         )
                     elif "partition." + phys_name in ac:
@@ -471,24 +459,27 @@ def get_sql_for_delta_expr(
                             ).as_(field_name)
                         )
                     elif (
-                        "partition_values" in ac
-                        and field.name in ac["partition_values"]
+                        "partitionValues" in ac
+                        and field["name"] in ac["partitionValues"]
                     ):
                         cols_sql.append(
                             _cast(
-                                ex.convert(ac["partition_values"][field.name]), cast_as
+                                ex.convert(ac["partitionValues"][field["name"]]),
+                                cast_as,
                             ).as_(field_name)
                         )
-                    elif "partition." + field.name in ac:
+                    elif "partition." + field["name"] in ac:
                         cols_sql.append(
                             _cast(
-                                ex.convert(ac["partition." + field.name]), cast_as
+                                ex.convert(ac["partition." + field["name"]]), cast_as
                             ).as_(field_name)
                         )
                     elif phys_name in cols:
                         cols_sql.append(
                             _get_expr(
-                                ex.column(phys_name, quoted=True), field.type, field
+                                ex.column(phys_name, quoted=True),
+                                field_to_type(field),
+                                field,
                             )
                         )
                     else:
@@ -503,7 +494,7 @@ def get_sql_for_delta_expr(
             if len(file_selects) == 0:
                 file_selects = []
                 fields = [
-                    _dummy_expr(field.type).as_(field.name) for field in delta_fields
+                    _dummy_expr(field).as_(field["name"]) for field in delta_fields
                 ]
                 file_selects.append(ex.select(*fields).where("1=0"))
             file_sql = ex.CTE(
@@ -534,6 +525,7 @@ def get_sql_for_delta_expr(
                 se.with_(file_sql.alias, file_sql.args["this"], copy=False)
                 return se
         else:
+            assert version is None, "version is not supported with delta extension"
             if select:
                 select_exprs = [
                     ex.column(s, quoted=True) if isinstance(s, str) else s
@@ -557,7 +549,7 @@ def get_sql_for_delta_expr(
 
 
 def get_sql_for_delta(
-    dt: "Union[DeltaTable, Path, str]",
+    dt: "Union[Path, str]",
     conditions: Optional[dict] = None,
     select: Union[list[str], None] = None,
     distinct=False,
@@ -570,6 +562,7 @@ def get_sql_for_delta(
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     use_fsspec: bool = False,
     use_delta_ext=False,
+    version: "Optional[int]" = None,
 ) -> str:
     expr = get_sql_for_delta_expr(
         table_or_path=dt,
@@ -584,6 +577,7 @@ def get_sql_for_delta(
         get_credential=get_credential,
         use_fsspec=use_fsspec,
         use_delta_ext=use_delta_ext,
+        version=version,
     )
     if cte_wrap_name:
         suffix_sql = ex.select(ex.Star()).from_(cte_wrap_name).sql(dialect="duckdb")

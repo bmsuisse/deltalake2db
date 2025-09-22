@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from deltalake import DeltaTable
 import duckdb
 import polars as pl
 import pytest
@@ -18,15 +17,17 @@ def test_chain():
         )
 
         df = pl.from_arrow(con.execute("select * from delta_table").fetch_arrow_table())
+        assert isinstance(df, pl.DataFrame)
         print(df)
-
-    assert isinstance(df.schema["main_coord"], pl.Struct)
-    fields = df.schema["main_coord"].fields
+    main_coord_field = df.schema["main_coord"]
+    assert isinstance(main_coord_field, pl.Struct)
+    fields = main_coord_field.fields
     assert "lat" in [f.name for f in fields]
     assert "lon" in [f.name for f in fields]
 
-    assert isinstance(df.schema["age"], pl.List)
-    assert isinstance(df.schema["age"].inner, pl.Int64)
+    age_field = df.schema["age"]
+    assert isinstance(age_field, pl.List)
+    assert isinstance(age_field.inner, pl.Int64)
     assert df.schema == OrderedDict(
         [
             ("Super Name", pl.String),
@@ -79,13 +80,15 @@ def test_col_mapping(storage_options, use_fsspec: bool, use_delta_ext: bool):
         assert isinstance(df, pl.DataFrame)
         print(df)
     if not use_delta_ext:
-        assert isinstance(df.schema["main_coord"], pl.Struct)
-        fields = df.schema["main_coord"].fields
+        main_coord_field = df.schema["main_coord"]
+        assert isinstance(main_coord_field, pl.Struct)
+        fields = main_coord_field.fields
         assert "lat" in [f.name for f in fields]
         assert "lon" in [f.name for f in fields]
 
-    assert isinstance(df.schema["age"], pl.List)
-    assert isinstance(df.schema["age"].inner, pl.Int64)
+    age_field = df.schema["age"]
+    assert isinstance(age_field, pl.List)
+    assert isinstance(age_field.inner, pl.Int64)
     if not use_delta_ext:
         assert df.schema == OrderedDict(
             [
@@ -115,12 +118,14 @@ def test_empty_struct(storage_options):
     # >>> duckdb.execute("""Select { 'lat': 1 } as tester union all select Null""").fetchall()
     import pyarrow.compute as pc
 
-    dt = DeltaTable("az://testlakedb/td/delta/fake", storage_options=storage_options)
-
     from deltalake2db import get_sql_for_delta
 
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(dt, duck_con=con)
+        sql = get_sql_for_delta(
+            "az://testlakedb/td/delta/fake",
+            duck_con=con,
+            storage_options=storage_options,
+        )
         print(sql)
         con.execute("create view delta_table as " + sql)
 

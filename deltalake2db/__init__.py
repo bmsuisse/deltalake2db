@@ -8,7 +8,6 @@ from .polars import (
     PolarsSettings,
 )
 from .protocol_check import is_protocol_supported
-from .delta_lake import get_delta_table
 
 __all__ = [
     "get_sql_for_delta",
@@ -19,5 +18,4 @@ __all__ = [
     "get_polars_schema",
     "PolarsSettings",
     "is_protocol_supported",
-    "get_delta_table",
 ]

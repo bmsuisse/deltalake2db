@@ -1,13 +1,9 @@
 # Deltalake2DB
 
-This is a simple project that uses Metadata from `deltalake` package to provide methods to read Delta Lake Tables
-to either Polars or DuckDB with better Protocol Support as the main `deltalake` package.
+This is a simple project that uses Metadata from the Delta Table to provide methods to read Delta Lake Tables
+to either Polars or DuckDB with better Protocol Support as the `deltalake` package (most importantly: column mapping).
 
-Usually you will want to use the deltalake extra, so install like this:
-
-`uv add deltalake2db[deltalake]`
-
-To only way to use this package without the extra is to use DuckDB with parameter `use_delta_ext=True`, which justs uses the delta extension
+`uv add deltalake2db`
 
 ## Use with Duckdb
 
@@ -20,8 +16,7 @@ Then you can do like this:
 from deltalake2db import get_sql_for_delta,
 
 with duckdb.connect() as con:
-    dt = DeltaTable("tests/data/faker2")
-    sql = get_sql_for_delta(dt, duck_con=con) # get select statement
+    sql = get_sql_for_delta("tests/data/faker2", duck_con=con) # get select statement
     print(sql)
     duckdb_create_view_for_delta(con, dt, "delta_table") # or let it create a view for you. will point to the data at this point in time
 
@@ -35,9 +30,8 @@ If you'd like to manipulate you can use `get_sql_for_delta_expr` which returns a
 Install `deltalake2db` and `polars>=1.12` using pip/uv/poetry/whatever you use.
 
 ```python
-dt = DeltaTable("tests/data/faker2")
 from deltalake2db import polars_scan_delta
-lazy_df = polars_scan_delta(dt)
+lazy_df = polars_scan_delta("tests/data/faker2", storage_options=None) # pass storage options as you would for other polars-related stuff
 df = lazy_df.collect()
 
 ```
@@ -72,3 +66,5 @@ We also have the following projects around deltalake:
 Or projects from other people:
 
 - [polars-deltalake](https://github.com/ion-elgreco/polars-deltalake) An experimental native polars deltalake reader
+
+Also, the Delta Extension of DuckDB is already pretty good and should probably do whatever you need.

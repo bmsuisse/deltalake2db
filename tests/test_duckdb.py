@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from deltalake import DeltaTable
 import duckdb
 import polars as pl
 import pytest
@@ -7,7 +6,7 @@ import pytest
 
 @pytest.mark.parametrize("use_delta_ext", [False, True])
 def test_col_mapping(use_delta_ext):
-    dt = DeltaTable("tests/data/faker2")
+    dt = "tests/data/faker2"
 
     from deltalake2db import get_sql_for_delta
 
@@ -25,15 +24,18 @@ def test_col_mapping(use_delta_ext):
         con.execute("create view delta_table as " + sql)
 
         df = pl.from_arrow(con.execute("select * from delta_table").fetch_arrow_table())
+        assert isinstance(df, pl.DataFrame)
         print(df)
     if not use_delta_ext:
-        assert isinstance(df.schema["main_coord"], pl.Struct)
-        fields = df.schema["main_coord"].fields
+        coord_field = df.schema["main_coord"]
+        assert isinstance(coord_field, pl.Struct)
+        fields = coord_field.fields
         assert "lat" in [f.name for f in fields]
         assert "lon" in [f.name for f in fields]
 
-    assert isinstance(df.schema["age"], pl.List)
-    assert isinstance(df.schema["age"].inner, pl.Int64)
+    age_field = df.schema["age"]
+    assert isinstance(age_field, pl.List)
+    assert isinstance(age_field.inner, pl.Int64)
     if not use_delta_ext:
         assert df.schema == OrderedDict(
             [
@@ -61,7 +63,7 @@ def test_col_mapping(use_delta_ext):
 
 @pytest.mark.parametrize("use_delta_ext", [False, True])
 def test_strange_cols(use_delta_ext):
-    dt = DeltaTable("tests/data/user")
+    dt = "tests/data/user"
 
     from deltalake2db import duckdb_create_view_for_delta
 
@@ -70,6 +72,7 @@ def test_strange_cols(use_delta_ext):
             con, dt, "delta_table", use_delta_ext=use_delta_ext
         )
         con.execute("select * from delta_table")
+        assert con.description is not None
         col_names = [c[0] for c in con.description]
         assert "time stämp" in col_names
         print("\n")
@@ -77,13 +80,14 @@ def test_strange_cols(use_delta_ext):
 
 
 def test_filter_number():
-    dt = DeltaTable("tests/data/user")
+    dt = "tests/data/user"
 
     from deltalake2db import duckdb_create_view_for_delta
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(con, dt, "delta_table", conditions={"Age": 23.0})
         con.execute("select FirstName from delta_table")
+        assert con.description is not None
         col_names = [c[0] for c in con.description]
         assert col_names == ["FirstName"]
         names = con.fetchall()
@@ -92,17 +96,19 @@ def test_filter_number():
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(con, dt, "delta_table_1", conditions={"Age": 23.0})
         con.execute("select * from delta_table_1")
+        assert con.description is not None
         col_types_1 = [c[1] for c in con.description]
         duckdb_create_view_for_delta(
             con, dt, "delta_table_2", conditions={"Age": 500.0}
         )
         con.execute("select * from delta_table_2")
+        assert con.description is not None
         col_types_2 = [c[1] for c in con.description]
         assert col_types_1 == col_types_2
 
 
 def test_filter_name():
-    dt = DeltaTable("tests/data/user")
+    dt = "tests/data/user"
 
     from deltalake2db import duckdb_create_view_for_delta
 
@@ -111,6 +117,7 @@ def test_filter_name():
             con, dt, "delta_table", conditions={"FirstName": "Peter"}
         )
         con.execute("select FirstName from delta_table")
+        assert con.description is not None
         col_names = [c[0] for c in con.description]
         names = con.fetchall()
         assert len(names) == 1
@@ -118,13 +125,14 @@ def test_filter_name():
 
 
 def test_user_empty():
-    dt = DeltaTable("tests/data/user_empty")
+    dt = "tests/data/user_empty"
 
     from deltalake2db import duckdb_create_view_for_delta
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(con, dt, "delta_table")
         con.execute("select * from delta_table")
+        assert con.description is not None
         col_names = [c[0] for c in con.description]
         assert "time stämp" in col_names
         assert len(con.fetchall()) == 0
@@ -133,9 +141,11 @@ def test_user_empty():
 def test_user_add():
     import shutil
     import pandas as pd
+    from deltalake import DeltaTable
 
     shutil.rmtree("tests/data/_user2", ignore_errors=True)
     shutil.copytree("tests/data/user", "tests/data/_user2")
+
     dt = DeltaTable("tests/data/_user2")
     old_version = dt.version()
     from deltalake.writer import write_deltalake
@@ -160,8 +170,10 @@ def test_user_add():
     from deltalake2db import duckdb_create_view_for_delta
 
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(con, dt, "delta_table_n")
-        duckdb_create_view_for_delta(con, dt_o, "delta_table_o")
+        duckdb_create_view_for_delta(con, dt.table_uri, "delta_table_n")
+        duckdb_create_view_for_delta(
+            con, dt_o.table_uri, "delta_table_o", version=old_version
+        )
         con.execute(
             'select "User - iD" from delta_table_n except select "User - iD" from delta_table_o'
         )
@@ -173,8 +185,9 @@ def test_user_add():
 def test_empty_struct():
     # >>> duckdb.execute("""Select { 'lat': 1 } as tester union all select Null""").fetchall()
     import pyarrow as pa
+    import pyarrow.compute as pac
 
-    dt = DeltaTable("tests/data/faker2")
+    dt = "tests/data/faker2"
 
     from deltalake2db import get_sql_for_delta
 
@@ -186,7 +199,7 @@ def test_empty_struct():
         df = con.execute("select * from delta_table").fetch_arrow_table()
         print(df)
         mc = (
-            df.filter(pa.compute.field("new_name") == "Hans Heiri")
+            df.filter(pac.field("new_name") == "Hans Heiri")
             .select(["main_coord"])
             .to_pylist()
         )
