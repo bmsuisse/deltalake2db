@@ -15,13 +15,15 @@ def test_chain():
 
     df = df.collect()
 
-    assert isinstance(df.schema["main_coord"], pl.Struct)
-    fields = df.schema["main_coord"].fields
+    main_coord_field = df.schema["main_coord"]
+    assert isinstance(main_coord_field, pl.Struct)
+    fields = main_coord_field.fields
     assert "lat" in [f.name for f in fields]
     assert "lon" in [f.name for f in fields]
 
-    assert isinstance(df.schema["age"], pl.List)
-    assert isinstance(df.schema["age"].inner, pl.Int64)
+    age_field = df.schema["age"]
+    assert isinstance(age_field, pl.List)
+    assert isinstance(age_field.inner, pl.Int64)
     assert df.schema == OrderedDict(
         [
             ("Super Name", pl.String),
@@ -50,14 +52,15 @@ def test_col_mapping(storage_options, use_pyarrow):
     )
     if isinstance(df, pl.LazyFrame):
         df = df.collect()
-
-    assert isinstance(df.schema["main_coord"], pl.Struct)
-    fields = df.schema["main_coord"].fields
+    coord_field = df.schema["main_coord"]
+    assert isinstance(coord_field, pl.Struct)
+    fields = coord_field.fields
     assert "lat" in [f.name for f in fields]
     assert "lon" in [f.name for f in fields]
 
-    assert isinstance(df.schema["age"], pl.List)
-    assert isinstance(df.schema["age"].inner, pl.Int64)
+    age_field = df.schema["age"]
+    assert isinstance(age_field, pl.List)
+    assert isinstance(age_field.inner, pl.Int64)
     assert df.schema == OrderedDict(
         [
             ("Super Name", pl.String),
@@ -74,11 +77,11 @@ def test_col_mapping(storage_options, use_pyarrow):
 
 
 def test_empty_struct(storage_options):
-    dt = DeltaTable("az://testlakedb/td/delta/fake", storage_options=storage_options)
-
     from deltalake2db import polars_scan_delta
 
-    df = polars_scan_delta(dt)
+    df = polars_scan_delta(
+        "az://testlakedb/td/delta/fake", storage_options=storage_options
+    )
 
     df = df.collect()
 

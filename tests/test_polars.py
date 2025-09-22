@@ -7,7 +7,7 @@ import pytest
 
 @pytest.mark.parametrize("use_pyarrow", [True, False])
 def test_col_mapping(use_pyarrow):
-    dt = DeltaTable("tests/data/faker2")
+    dt = "tests/data/faker2"
 
     from deltalake2db import polars_scan_delta, PolarsSettings
 
@@ -15,13 +15,14 @@ def test_col_mapping(use_pyarrow):
 
     df = df.collect() if not isinstance(df, pl.DataFrame) else df
 
-    assert isinstance(df.schema["main_coord"], pl.Struct)
-    fields = df.schema["main_coord"].fields
+    coord_field = df.schema["main_coord"]
+    assert isinstance(coord_field, pl.Struct)
+    fields = coord_field.fields
     assert "lat" in [f.name for f in fields]
     assert "lon" in [f.name for f in fields]
-
-    assert isinstance(df.schema["age"], pl.List)
-    assert isinstance(df.schema["age"].inner, pl.Int64)
+    age_field = df.schema["age"]
+    assert isinstance(age_field, pl.List)
+    assert isinstance(age_field.inner, pl.Int64)
     assert df.schema == OrderedDict(
         [
             ("Super Name", pl.String),
@@ -92,13 +93,13 @@ def test_user_add(use_pyarrow):
     import polars as pl
 
     nc = _collect(
-        polars_scan_delta(dt, settings=PolarsSettings(use_pyarrow=use_pyarrow)).select(
-            pl.col("User - iD")
-        )
+        polars_scan_delta(
+            dt.table_uri, settings=PolarsSettings(use_pyarrow=use_pyarrow)
+        ).select(pl.col("User - iD"))
     ).to_dicts()
     oc = _collect(
         polars_scan_delta(
-            dt_o, settings=PolarsSettings(use_pyarrow=use_pyarrow)
+            dt_o.table_uri, settings=PolarsSettings(use_pyarrow=use_pyarrow)
         ).select(pl.col("User - iD"))
     ).to_dicts()
     diff = [o["User - iD"] for o in nc if o not in oc]
@@ -106,7 +107,7 @@ def test_user_add(use_pyarrow):
 
 
 def test_user_empty():
-    dt = DeltaTable("tests/data/user_empty")
+    dt = "tests/data/user_empty"
 
     from deltalake2db import polars_scan_delta
 
@@ -116,7 +117,7 @@ def test_user_empty():
 
 
 def test_select():
-    dt = DeltaTable("tests/data/user")
+    dt = "tests/data/user"
 
     from deltalake2db import polars_scan_delta, PolarsSettings
 
@@ -133,7 +134,7 @@ def test_select():
 
 @pytest.mark.parametrize("use_pyarrow", [True, False])
 def test_strange_cols(use_pyarrow):
-    dt = DeltaTable("tests/data/user")
+    dt = "tests/data/user"
 
     from deltalake2db import polars_scan_delta, PolarsSettings
 
@@ -146,7 +147,7 @@ def test_strange_cols(use_pyarrow):
 
 @pytest.mark.parametrize("use_pyarrow", [True, False])
 def test_filter_number(use_pyarrow):
-    dt = DeltaTable("tests/data/user")
+    dt = "tests/data/user"
 
     from deltalake2db import polars_scan_delta, PolarsSettings
 
@@ -163,7 +164,7 @@ def test_filter_number(use_pyarrow):
 
 
 def test_filter_name():
-    dt = DeltaTable("tests/data/user")
+    dt = "tests/data/user"
 
     from deltalake2db import polars_scan_delta
 
@@ -177,7 +178,7 @@ def test_schema():
     from deltalake2db import polars_scan_delta, get_polars_schema
 
     for tbl in ["user", "faker2", "user_empty"]:
-        dt = DeltaTable("tests/data/" + tbl)
+        dt = "tests/data/" + tbl
 
         df = polars_scan_delta(dt)
         schema = get_polars_schema(dt)
@@ -186,7 +187,7 @@ def test_schema():
 
 
 def test_empty_struct():
-    dt = DeltaTable("tests/data/faker2")
+    dt = "tests/data/faker2"
 
     from deltalake2db import polars_scan_delta
 
