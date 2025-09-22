@@ -8,6 +8,7 @@ supported_reader_features = [
     "columnMapping",
     "timestampNtz",
     "typeWidening",
+    "vacuumProtocolCheck",
 ]  # not: deletionVectors, v2Checkpoint
 
 
