@@ -50,6 +50,7 @@ def test_user_add(use_pyarrow):
     shutil.rmtree("tests/data/_user3", ignore_errors=True)
     shutil.copytree("tests/data/user", "tests/data/_user3")
     dt = DeltaTable("tests/data/_user3")
+
     old_version = dt.version()
     from deltalake.writer import write_deltalake
     from deltalake import __version__ as deltalake_version

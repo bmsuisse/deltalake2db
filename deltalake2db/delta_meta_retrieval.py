@@ -82,6 +82,16 @@ class MetaState:
     last_metadata: Union[dict, None] = None
     protocol: Union[DeltaProtocol, None] = None
     add_actions: dict[str, dict] = {}
+    last_commit_info: Union[dict, None] = None
+
+    @property
+    def last_write_time(self):
+        from datetime import datetime, timezone
+
+        assert self.last_commit_info is not None
+        ts = self.last_commit_info.get("timestamp", None)
+        assert ts is not None
+        return datetime.fromtimestamp(ts / 1000.0, timezone.utc)
 
     @property
     def schema(self) -> Union[StructType, None]:
@@ -105,6 +115,8 @@ def process_meta_data(actions: dict, state: MetaState):
     if actions.get("add"):
         path = actions["add"]["path"]
         state.add_actions[path] = actions["add"]
+    if actions.get("commitInfo"):
+        state.last_commit_info = actions["commitInfo"]
     if actions.get("remove"):
         path = actions["remove"]["path"]
         if path in state.add_actions:
