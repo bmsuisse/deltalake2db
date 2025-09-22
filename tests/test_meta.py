@@ -5,12 +5,13 @@ from datetime import datetime, timezone
 def test_last_write_time():
     import deltalake
 
-    meta = get_meta(PolarsEngine(None), "tests/data/user")
-    assert meta.last_write_time is not None
-    dt = deltalake.DeltaTable("tests/data/user")
+    for tbl in ["user"]:
+        meta = get_meta(PolarsEngine(None), f"tests/data/{tbl}")
+        assert meta.last_write_time is not None
+        dt = deltalake.DeltaTable(f"tests/data/{tbl}")
 
-    t2 = datetime.fromtimestamp(
-        dt.history(1)[-1]["timestamp"] / 1000.0,
-        tz=timezone.utc,
-    )
-    assert meta.last_write_time == t2
+        t2 = datetime.fromtimestamp(
+            dt.history(1)[-1]["timestamp"] / 1000.0,
+            tz=timezone.utc,
+        )
+        assert meta.last_write_time == t2
