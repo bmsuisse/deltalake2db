@@ -5,7 +5,7 @@ from deltalake2db.azure_helper import (
     get_storage_options_object_store,
     get_storage_options_fsspec,
 )
-from deltalake2db.filter_by_meta import _can_filter
+from deltalake2db.filter_by_meta import _can_filter, _partition_value_to_python
 
 if TYPE_CHECKING:
     import polars as pl
@@ -15,6 +15,7 @@ from collections import OrderedDict
 import os
 from deltalake2db.delta_meta_retrieval import (
     PolarsEngine,
+    PrimitiveType,
     get_meta,
     DataType,
     field_to_type,
@@ -268,6 +269,12 @@ def _versiontuple(v):
     return tuple(map(int, (v.split("."))))
 
 
+def _to_dict(pv):
+    if isinstance(pv, list):
+        return {k["key"]: k["value"] for k in pv}
+    return pv
+
+
 @overload
 def scan_delta_union(
     delta_table: "Union[Path, str]",
@@ -363,9 +370,14 @@ def scan_delta_union(
     else:
         pyarrow_opts = None
         storage_options_for_fsspec = None
-
+    physicalTypeMap: dict[str, PrimitiveType] = {
+        f.get("metadata", {}).get("delta.columnMapping.physicalName", f["name"]): cast(
+            PrimitiveType, f["type"]
+        )
+        for f in all_fields
+    }
     for ac in delta_meta.add_actions.values():
-        if conditions is not None and _can_filter(ac, conditions):
+        if conditions is not None and _can_filter(ac, conditions, physicalTypeMap):
             continue
         fullpath = os.path.join(path_for_delta, ac["path"]).replace("\\", "/")
         if settings.use_pyarrow:
@@ -434,35 +446,16 @@ def scan_delta_union(
             pn = field.get("metadata", {}).get(
                 "delta.columnMapping.physicalName", field["name"]
             )
-            if "partitionValues" in ac and pn in ac["partitionValues"]:
-                part_vl = ac["partitionValues"][pn]
+            pv = _to_dict(ac.get("partitionValues", {}))
+            if pn in pv:
+                part_vl = pv[pn]
+                _type = field_to_type(field)
+                if isinstance(_type, str):
+                    part_vl = _partition_value_to_python(part_vl, _type)
                 selects.append(
-                    pl.lit(
-                        part_vl, _get_type(field_to_type(field), False, settings)
-                    ).alias(field["name"])
-                )
-            elif "partition." + pn in ac:
-                part_vl = ac["partition." + pn]
-                selects.append(
-                    pl.lit(
-                        part_vl, _get_type(field_to_type(field), False, settings)
-                    ).alias(field["name"])
-                )
-            elif "partitionValues" in ac and field["name"] in ac["partitionValues"]:
-                # as of delta 0.14
-                part_vl = ac["partitionValues"][field["name"]]
-                selects.append(
-                    pl.lit(
-                        part_vl, _get_type(field_to_type(field), False, settings)
-                    ).alias(field["name"])
-                )
-            elif "partition." + field["name"] in ac:
-                # as of delta 0.14
-                part_vl = ac["partition." + field["name"]]
-                selects.append(
-                    pl.lit(
-                        part_vl, _get_type(field_to_type(field), False, settings)
-                    ).alias(field["name"])
+                    pl.lit(part_vl, _get_type(_type, False, settings)).alias(
+                        field["name"]
+                    )
                 )
             else:
                 selects.append(
@@ -478,7 +471,6 @@ def scan_delta_union(
                         settings,
                     )
                 )
-
         ds = (
             base_ds.select(*selects).filter(**conditions)
             if conditions is not None

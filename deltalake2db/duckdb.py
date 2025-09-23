@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional, Union
+from typing import TYPE_CHECKING, Callable, Optional, Union, cast
 import sqlglot.expressions as ex
 from deltalake2db.azure_helper import (
     get_storage_options_fsspec,
@@ -8,11 +8,12 @@ from deltalake2db.azure_helper import (
     get_account_name_from_path,
     AZURE_EMULATOR_CONNECTION_STRING,
 )
-from deltalake2db.filter_by_meta import _can_filter
+from deltalake2db.filter_by_meta import _can_filter, _partition_value_to_python
 import deltalake2db.sql_utils as squ
 from deltalake2db.delta_meta_retrieval import (
     DataType,
     DuckDBEngine,
+    PrimitiveType,
     get_meta,
     field_to_type,
     PrimitiveField,
@@ -323,6 +324,12 @@ type_map = {
 }
 
 
+def _to_dict(pv):
+    if isinstance(pv, list):
+        return {k["key"]: k["value"] for k in pv}
+    return pv
+
+
 def create_view_for_delta(
     con: "duckdb.DuckDBPyConnection",
     delta_table: "Union[Path , str]",
@@ -419,11 +426,17 @@ def get_sql_for_delta_expr(
             file_selects: list[ex.Select] = []
             assert meta_state.schema is not None
             delta_fields = meta_state.schema["fields"]
+            physicalTypeMap: dict[str, PrimitiveType] = {
+                f.get("metadata", {}).get(
+                    "delta.columnMapping.physicalName", f["name"]
+                ): cast(PrimitiveType, f["type"])
+                for f in delta_fields
+            }
             for ac in meta_state.add_actions.values():
                 if (
                     conditions is not None
                     and isinstance(conditions, dict)
-                    and _can_filter(ac, conditions)
+                    and _can_filter(ac, conditions, physicalTypeMap)
                 ):
                     continue
                 if action_filter and not action_filter(ac):
@@ -446,11 +459,15 @@ def get_sql_for_delta_expr(
                             cast_as = ex.DataType.build(str(field["type"]))
                         else:
                             cast_as = type_map.get(field["type"])
-                    if "partitionValues" in ac and phys_name in ac["partitionValues"]:
+                    pv = _to_dict(ac.get("partitionValues", {}))
+                    if phys_name in pv:
+                        part_vl = pv[phys_name]
+
+                        _type = field_to_type(field)
+                        if isinstance(_type, str):
+                            part_vl = _partition_value_to_python(part_vl, _type)
                         cols_sql.append(
-                            _cast(
-                                ex.convert(ac["partitionValues"][phys_name]), cast_as
-                            ).as_(field_name)
+                            _cast(ex.convert(part_vl), cast_as).as_(field_name)
                         )
                     elif "partition." + phys_name in ac:
                         cols_sql.append(

@@ -5,6 +5,21 @@ import polars as pl
 import pytest
 
 
+def test_partitioning():
+    from datetime import date
+
+    as_date = "2021-09-08"
+    dt = "tests/data/data-skipping-basic-stats-all-types-columnmapping-name"
+    from deltalake2db import polars_scan_delta, PolarsSettings
+
+    df = polars_scan_delta(
+        dt,
+        conditions={"as_date": date.fromisoformat(as_date)},
+    )
+    df = df.collect() if not isinstance(df, pl.DataFrame) else df
+    assert len(df) == 0
+
+
 @pytest.mark.parametrize("use_pyarrow", [True, False])
 def test_col_mapping(use_pyarrow):
     dt = "tests/data/faker2"
