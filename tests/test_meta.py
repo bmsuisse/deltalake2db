@@ -34,3 +34,13 @@ def test_filtering():
         )
         == 2
     )
+    assert (
+        len(
+            list(
+                m.get_add_actions_filtered(
+                    {"as_date": date.fromisoformat("2025-09-08")}
+                )
+            )
+        )
+        == 0
+    )
