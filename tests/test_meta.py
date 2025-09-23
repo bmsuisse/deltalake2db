@@ -54,3 +54,6 @@ def test_filtering():
         )
         == 0
     )
+
+    assert len(list(m.get_add_actions_filtered({"as_string": None}))) == 1
+    assert len(list(m.get_add_actions_filtered({"as_string": "0asfd"}))) == 0
