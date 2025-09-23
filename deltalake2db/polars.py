@@ -370,15 +370,7 @@ def scan_delta_union(
     else:
         pyarrow_opts = None
         storage_options_for_fsspec = None
-    physicalTypeMap: dict[str, PrimitiveType] = {
-        f.get("metadata", {}).get("delta.columnMapping.physicalName", f["name"]): cast(
-            PrimitiveType, f["type"]
-        )
-        for f in all_fields
-    }
-    for ac in delta_meta.add_actions.values():
-        if conditions is not None and _can_filter(ac, conditions, physicalTypeMap):
-            continue
+    for ac in delta_meta.get_add_actions_filtered(conditions):
         fullpath = os.path.join(path_for_delta, ac["path"]).replace("\\", "/")
         if settings.use_pyarrow:
             ds = pl.read_parquet(

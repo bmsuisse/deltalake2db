@@ -1,7 +1,7 @@
 import logging
 import json
 from datetime import date, datetime
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Any
 
 from deltalake2db.delta_meta_retrieval import PrimitiveType, StructType
 
@@ -73,7 +73,7 @@ def _to_dict(pv):
 
 def _can_filter(
     action: dict,
-    conditions: dict,
+    conditions: Mapping[str, Any],
     typeMap: Optional[Mapping[str, PrimitiveType]] = None,
 ) -> bool:
     # see https://github.com/delta-io/delta/blob/master/PROTOCOL.md#per-file-statistics
