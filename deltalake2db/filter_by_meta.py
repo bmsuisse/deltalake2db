@@ -1,7 +1,7 @@
 import logging
 import json
 from datetime import date, datetime
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Any
 
 from deltalake2db.delta_meta_retrieval import PrimitiveType, StructType
 
@@ -73,7 +73,7 @@ def _to_dict(pv):
 
 def _can_filter(
     action: dict,
-    conditions: dict,
+    conditions: Mapping[str, Any],
     typeMap: Optional[Mapping[str, PrimitiveType]] = None,
 ) -> bool:
     # see https://github.com/delta-io/delta/blob/master/PROTOCOL.md#per-file-statistics
@@ -81,10 +81,12 @@ def _can_filter(
         typeMap = typeMap or {}
         for key, value in conditions.items():
             part_type = typeMap.get(key, "string")
-            part_vl = _to_dict(action.get("partitionValues", {})).get(key, None)
-            serialized_value = _serialize_partition_value(value, part_type)
-            if part_vl is not None and part_vl != serialized_value:
-                return True
+            part_vls = _to_dict(action.get("partitionValues", {}))
+            if key in part_vls:
+                part_vl = part_vls.get(key, None)
+                serialized_value = _serialize_partition_value(value, part_type)
+                if part_vl != serialized_value:
+                    return True
             stats = {}
             if action.get("stats"):
                 stats = action["stats"]

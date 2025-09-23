@@ -426,19 +426,9 @@ def get_sql_for_delta_expr(
             file_selects: list[ex.Select] = []
             assert meta_state.schema is not None
             delta_fields = meta_state.schema["fields"]
-            physicalTypeMap: dict[str, PrimitiveType] = {
-                f.get("metadata", {}).get(
-                    "delta.columnMapping.physicalName", f["name"]
-                ): cast(PrimitiveType, f["type"])
-                for f in delta_fields
-            }
-            for ac in meta_state.add_actions.values():
-                if (
-                    conditions is not None
-                    and isinstance(conditions, dict)
-                    and _can_filter(ac, conditions, physicalTypeMap)
-                ):
-                    continue
+            for ac in meta_state.get_add_actions_filtered(
+                conditions if isinstance(conditions, dict) else None
+            ):
                 if action_filter and not action_filter(ac):
                     continue
                 fullpath = base_path + "/" + ac["path"]

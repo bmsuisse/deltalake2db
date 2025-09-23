@@ -6,6 +6,9 @@ from typing import (
     TypedDict,
     Literal,
     Optional,
+    Mapping,
+    Any,
+    cast,
 )
 import json
 
@@ -25,6 +28,8 @@ PrimitiveType = Literal[
     "timestamp",
     "timestamp_ntz",
     "decimal",
+    "short",
+    "byte",
 ]
 
 
@@ -85,6 +90,21 @@ class MetaState:
     add_actions: dict[str, dict] = {}
     last_commit_info: Union[dict, None] = None
     version: int = 0
+
+    def get_add_actions_filtered(self, conditions: Optional[Mapping[str, Any]] = None):
+        from deltalake2db.filter_by_meta import _can_filter
+
+        all_fields = self.schema["fields"] if self.schema else []
+        physicalTypeMap: dict[str, PrimitiveType] = {
+            f.get("metadata", {}).get(
+                "delta.columnMapping.physicalName", f["name"]
+            ): cast(PrimitiveType, f["type"])
+            for f in all_fields
+        }
+        for ac in self.add_actions.values():
+            if conditions is not None and _can_filter(ac, conditions, physicalTypeMap):
+                continue
+            yield ac
 
     @property
     def last_write_time(self):
