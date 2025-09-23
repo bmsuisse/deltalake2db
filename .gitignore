@@ -163,3 +163,5 @@ __azurite*
 __blobstorage*
 test_manual.py
 repo.py
+
+infmgr_project
