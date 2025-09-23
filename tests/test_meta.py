@@ -1,5 +1,5 @@
 from deltalake2db.delta_meta_retrieval import get_meta, PolarsEngine
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 
 def test_last_write_time():
@@ -16,3 +16,21 @@ def test_last_write_time():
         )
         assert meta.last_write_time == t2
         assert meta.version == dt.version()
+
+
+def test_filtering():
+    from deltalake2db.delta_meta_retrieval import get_meta, PolarsEngine
+
+    dt = "tests/data/data-reader-partition-values"
+    m = get_meta(PolarsEngine(None), dt)
+    assert len(list(m.get_add_actions_filtered())) == 3
+    assert (
+        len(
+            list(
+                m.get_add_actions_filtered(
+                    {"as_date": date.fromisoformat("2021-09-08")}
+                )
+            )
+        )
+        == 2
+    )
