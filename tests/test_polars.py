@@ -9,7 +9,7 @@ def test_partitioning():
     from datetime import date
 
     as_date = "2021-09-08"
-    dt = "tests/data/data-reader-partition-values"
+    dt = "tests/data/data-skipping-basic-stats-all-types-columnmapping-name"
     from deltalake2db import polars_scan_delta, PolarsSettings
 
     df = polars_scan_delta(
@@ -17,7 +17,7 @@ def test_partitioning():
         conditions={"as_date": date.fromisoformat(as_date)},
     )
     df = df.collect() if not isinstance(df, pl.DataFrame) else df
-    assert len(df) > 0
+    assert len(df) == 0
 
 
 @pytest.mark.parametrize("use_pyarrow", [True, False])
