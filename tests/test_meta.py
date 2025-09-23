@@ -18,6 +18,16 @@ def test_last_write_time():
         assert meta.version == dt.version()
 
 
+def test_stat_pushdown():
+    from deltalake2db.delta_meta_retrieval import get_meta, PolarsEngine
+
+    path = "tests/data/data-skipping-basic-stats-all-types-columnmapping-name"
+    m = get_meta(PolarsEngine(None), path)
+    assert len(list(m.get_add_actions_filtered())) == 1
+    assert len(list(m.get_add_actions_filtered({"as_int": 0}))) == 1
+    assert len(list(m.get_add_actions_filtered({"as_int": 2}))) == 1
+
+
 def test_filtering():
     from deltalake2db.delta_meta_retrieval import get_meta, PolarsEngine
 

@@ -28,6 +28,8 @@ PrimitiveType = Literal[
     "timestamp",
     "timestamp_ntz",
     "decimal",
+    "short",
+    "byte",
 ]
 
 
