@@ -160,7 +160,7 @@ class PyArrowEngine(MetadataEngine):
 
 
 class PolarsEngine(MetadataEngine):
-    def __init__(self, storage_options: Optional[dict]) -> None:
+    def __init__(self, storage_options: Optional[dict] = None) -> None:
         super().__init__()
         self.storage_options = storage_options
 
