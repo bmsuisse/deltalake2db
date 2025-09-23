@@ -126,7 +126,11 @@ def process_meta_data(actions: dict, state: MetaState, version: int):
 
 
 class MetadataEngine(Protocol):
-    def list_files(self, path: str) -> Sequence[str]: ...
+    def list_files(
+        self, path: str
+    ) -> Sequence[
+        str
+    ]: ...  # currently unused, but might be required later on (eg, for better time travel)
 
     def read_jsonl(self, path: str) -> Sequence[dict]: ...
 
