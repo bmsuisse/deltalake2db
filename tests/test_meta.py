@@ -48,6 +48,16 @@ def test_filtering():
         len(
             list(
                 m.get_add_actions_filtered(
+                    [("as_date", "<>", date.fromisoformat("2021-09-08"))]
+                )
+            )
+        )
+        == 1
+    )
+    assert (
+        len(
+            list(
+                m.get_add_actions_filtered(
                     [("as_date", "=", date.fromisoformat("2025-09-08"))]
                 )
             )
@@ -61,6 +71,8 @@ def test_filtering():
         == 1
     )
     assert len(list(m.get_add_actions_filtered([("as_string", "=", "0asfd")]))) == 0
+    assert len(list(m.get_add_actions_filtered([("as_string", "<>", "0asfd")]))) == 3
+    assert len(list(m.get_add_actions_filtered([("as_string", "<>", None)]))) == 2
     assert len(list(m.get_add_actions_filtered([("as_int", ">=", "-1")]))) == 2
     assert len(list(m.get_add_actions_filtered([("as_int", ">", 0)]))) == 1
     assert len(list(m.get_add_actions_filtered([("as_int", ">", 1)]))) == 0

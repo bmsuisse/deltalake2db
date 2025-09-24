@@ -75,7 +75,7 @@ def _to_dict(pv):
     return pv
 
 
-Operator = Literal["<", "=", ">", ">=", "<=", "in", "not in"]
+Operator = Literal["<", "=", ">", ">=", "<=", "<>", "in", "not in"]
 
 
 def _can_value_filter(
@@ -124,6 +124,9 @@ def _can_filter(
                         return True
                 elif operator == "=":
                     if part_vl != _serialize_partition_value(value, part_type):
+                        return True
+                elif operator == "<>":
+                    if part_vl == _serialize_partition_value(value, part_type):
                         return True
                 elif operator in [">", ">=", "<", "<="] and part_vl is None:
                     return True
