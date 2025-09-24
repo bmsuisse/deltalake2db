@@ -8,7 +8,12 @@ from deltalake2db.azure_helper import (
     get_account_name_from_path,
     AZURE_EMULATOR_CONNECTION_STRING,
 )
-from deltalake2db.filter_by_meta import _can_filter, _partition_value_to_python
+from deltalake2db.filter_by_meta import (
+    FilterType,
+    FilterTypeOld,
+    to_new_filter_type,
+    _partition_value_to_python,
+)
 import deltalake2db.sql_utils as squ
 from deltalake2db.delta_meta_retrieval import (
     DataType,
@@ -336,7 +341,7 @@ def create_view_for_delta(
     view_name: str,
     overwrite=True,
     *,
-    conditions: Optional[dict] = None,
+    conditions: Optional[Union[FilterType, FilterTypeOld]] = None,
     storage_options: Optional[dict] = None,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     use_fsspec: bool = False,
@@ -364,7 +369,9 @@ def create_view_for_delta(
 
 def get_sql_for_delta_expr(
     table_or_path: "Union[Path , str]",
-    conditions: Union[Optional[dict], Sequence[ex.Expression], ex.Expression] = None,
+    conditions: Optional[
+        Union[FilterType, FilterTypeOld, Sequence[ex.Expression]]
+    ] = None,
     select: Union[Sequence[Union[str, ex.Expression]], None] = None,
     distinct=False,
     cte_wrap_name: Union[str, None] = None,
@@ -379,8 +386,6 @@ def get_sql_for_delta_expr(
     use_delta_ext=False,
     version: "Optional[int]" = None,
 ) -> ex.Select:
-    from .sql_utils import read_parquet, union, filter_via_dict
-
     if isinstance(table_or_path, str):
         base_path = table_or_path
     else:
@@ -389,8 +394,9 @@ def get_sql_for_delta_expr(
     base_path = base_path.removesuffix("/")
     is_azure = base_path.startswith("az://") or base_path.startswith("abfss://")
     account_name_path = get_account_name_from_path(base_path) if is_azure else None
-
-    conds = filter_via_dict(conditions) if isinstance(conditions, dict) else conditions
+    if conditions is not None:
+        conditions = to_new_filter_type(conditions)  # type: ignore
+    conds = squ.get_filter_expr(conditions)
     owns_con = False
     if duck_con is None:
         import duckdb
@@ -495,7 +501,7 @@ def get_sql_for_delta_expr(
                 select_pq = ex.select(
                     *cols_sql
                 ).from_(
-                    read_parquet(ex.convert(fullpath))
+                    squ.read_parquet(ex.convert(fullpath))
                 )  # "SELECT " + ", ".join(cols_sql) + " FROM read_parquet('" + fullpath + "')"
                 file_selects.append(select_pq)
             if len(file_selects) == 0:
@@ -505,7 +511,7 @@ def get_sql_for_delta_expr(
                 ]
                 file_selects.append(ex.select(*fields).where("1=0"))
             file_sql = ex.CTE(
-                this=union(file_selects, distinct=False), alias=delta_table_cte_name
+                this=squ.union(file_selects, distinct=False), alias=delta_table_cte_name
             )
             if select:
                 select_exprs = [
@@ -519,7 +525,7 @@ def get_sql_for_delta_expr(
             if distinct:
                 se = se.distinct()
             if conds is not None:
-                se = se.where(*conds)
+                se = se.where(conds)
             se = se.from_(delta_table_cte_name)
 
             if cte_wrap_name:
@@ -547,7 +553,7 @@ def get_sql_for_delta_expr(
             if distinct:
                 se = se.distinct()
             if conds is not None:
-                se = se.where(*conds)
+                se = se.where(conds)
             return se
 
     finally:
@@ -557,7 +563,7 @@ def get_sql_for_delta_expr(
 
 def get_sql_for_delta(
     dt: "Union[Path, str]",
-    conditions: Optional[dict] = None,
+    conditions: "Optional[Union[FilterType, FilterTypeOld]]" = None,
     select: Union[list[str], None] = None,
     distinct=False,
     action_filter: Union[Callable[[dict], bool], None] = None,

@@ -122,6 +122,29 @@ def test_filter_name():
         names = con.fetchall()
         assert len(names) == 1
         assert names[0][0] == "Peter"
+        duckdb_create_view_for_delta(
+            con,
+            dt,
+            "delta_table",
+            conditions=[("FirstName", "in", ["Peter", "Hans-Jürg"])],
+        )
+        con.execute("select FirstName from delta_table")
+        assert con.description is not None
+        col_names = [c[0] for c in con.description]
+        names = con.fetchall()
+        assert len(names) == 1
+        duckdb_create_view_for_delta(
+            con,
+            dt,
+            "delta_table",
+            conditions=[("FirstName", "not in", ["Peter", "Hans-Jürg"])],
+        )
+        con.execute("select FirstName from delta_table")
+        assert con.description is not None
+        col_names = [c[0] for c in con.description]
+        names = con.fetchall()
+        assert not "Peter" in [n[0] for n in names]
+        assert not "Hans-Jürg" in [n[0] for n in names]
 
 
 def test_user_empty():

@@ -5,7 +5,13 @@ from deltalake2db.azure_helper import (
     get_storage_options_object_store,
     get_storage_options_fsspec,
 )
-from deltalake2db.filter_by_meta import _can_filter, _partition_value_to_python
+from deltalake2db.filter_by_meta import (
+    FilterType,
+    FilterTypeOld,
+    _can_filter,
+    _partition_value_to_python,
+    to_new_filter_type,
+)
 
 if TYPE_CHECKING:
     import polars as pl
@@ -275,10 +281,42 @@ def _to_dict(pv):
     return pv
 
 
+def _get_polars_expr(conditions: FilterType) -> "pl.Expr":
+    import polars as pl
+
+    result_expr = None
+    for key, operator, value in conditions:
+        if operator == "in":
+            assert isinstance(value, (list, tuple, set))
+            expr = pl.col(key).is_in(value)
+        elif operator == "=":
+            expr = pl.col(key) == value
+        elif operator == "<":
+            expr = pl.col(key) < value
+        elif operator == "<=":
+            expr = pl.col(key) <= value
+        elif operator == ">":
+            expr = pl.col(key) > value
+        elif operator == ">=":
+            expr = pl.col(key) >= value
+        elif operator == "not in":
+            assert isinstance(value, (list, tuple, set))
+            expr = ~pl.col(key).is_in(value)
+        else:
+            raise ValueError(f"Unknown operator {operator}")
+        if result_expr is None:
+            result_expr = expr
+        else:
+            result_expr = result_expr & expr
+    if result_expr is not None:
+        return result_expr
+    return pl.lit(True)
+
+
 @overload
 def scan_delta_union(
     delta_table: "Union[Path, str]",
-    conditions: Optional[dict] = None,
+    conditions: Optional[Union[FilterType, FilterTypeOld]] = None,
     storage_options: Optional[dict] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
@@ -289,7 +327,7 @@ def scan_delta_union(
 @overload
 def scan_delta_union(
     delta_table: "Union[Path, str]",
-    conditions: Optional[dict] = None,
+    conditions: Optional[Union[FilterType, FilterTypeOld]] = None,
     storage_options: Optional[dict] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
@@ -300,7 +338,7 @@ def scan_delta_union(
 
 def scan_delta_union(
     delta_table: "Union[Path, str]",
-    conditions: Optional[dict] = None,
+    conditions: Optional[Union[FilterType, FilterTypeOld]] = None,
     storage_options: Optional[dict] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
@@ -313,7 +351,8 @@ def scan_delta_union(
 
     if settings is None:
         settings = PolarsSettings()
-
+    if conditions is not None:
+        conditions = to_new_filter_type(conditions)
     path_for_delta, storage_options_for_delta = get_storage_options_object_store(
         delta_table, storage_options, get_credential
     )
@@ -464,7 +503,7 @@ def scan_delta_union(
                     )
                 )
         ds = (
-            base_ds.select(*selects).filter(**conditions)
+            base_ds.select(*selects).filter(_get_polars_expr(conditions))
             if conditions is not None
             else base_ds.select(*selects)
         )

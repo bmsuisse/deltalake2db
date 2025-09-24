@@ -1,7 +1,10 @@
 from pathlib import Path
-from typing import Optional, Sequence, Any, TypeVar
+from typing import Optional, Sequence, Any, TypeVar, TYPE_CHECKING
 import sqlglot.expressions as ex
 from typing import Union
+
+if TYPE_CHECKING:
+    from deltalake2db.filter_by_meta import FilterType, Operator
 
 
 def read_parquet(
@@ -40,17 +43,41 @@ def union(selects: Sequence[ex.Expression], *, distinct: bool) -> ex.Expression:
         )
 
 
-def filter_via_dict(conditions: Optional[dict[str, Any]]):
-    if not conditions or len(conditions) == 0:
+def get_filter_expr(
+    conditions: "Optional[Sequence[Union[tuple[str, Operator, Any], ex.Expression]]]",
+):
+    if not conditions:
         return None
-    return [
-        (
-            ex.EQ(this=ex.column(k, quoted=True), expression=ex.convert(v))
-            if v is not None
-            else ex.Is(this=ex.column(k, quoted=True), expression=ex.Null())
-        )
-        for k, v in conditions.items()
-    ]
+    result_expr = None
+    for tuple_or_expr in conditions:
+        if isinstance(tuple_or_expr, ex.Expression):
+            expr = tuple_or_expr
+        else:
+            k, operator, v = tuple_or_expr
+            if operator == "=":
+                if v is None:
+                    expr = ex.column(k, quoted=True).is_(ex.Null())
+                else:
+                    expr = ex.column(k, quoted=True).eq(ex.convert(v))
+            elif operator == "<":
+                expr = ex.column(k, quoted=True) < ex.convert(v)
+            elif operator == "<=":
+                expr = ex.column(k, quoted=True) <= ex.convert(v)
+            elif operator == ">":
+                expr = ex.column(k, quoted=True) > ex.convert(v)
+            elif operator == ">=":
+                expr = ex.column(k, quoted=True) >= ex.convert(v)
+            elif operator == "in":
+                expr = ex.column(k, quoted=True).isin(*[ex.convert(i) for i in v])
+            elif operator == "not in":
+                expr = ~ex.column(k, quoted=True).isin(*[ex.convert(i) for i in v])
+            else:
+                raise ValueError(f"Unsupported operator: {operator}")
+        if result_expr is None:
+            result_expr = expr
+        else:
+            result_expr = ex.and_(result_expr, expr)
+    return result_expr
 
 
 T = TypeVar("T", bound=ex.Query)
