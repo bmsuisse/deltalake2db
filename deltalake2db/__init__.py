@@ -8,6 +8,8 @@ from .polars import (
     PolarsSettings,
 )
 from .protocol_check import is_protocol_supported
+from .filter_by_meta import FilterType, FilterTypeOld
+from .delta_meta_retrieval import get_meta as get_deltalake_meta
 
 __all__ = [
     "get_sql_for_delta",
@@ -18,4 +20,7 @@ __all__ = [
     "get_polars_schema",
     "PolarsSettings",
     "is_protocol_supported",
+    "FilterType",
+    "FilterTypeOld",
+    "get_deltalake_meta",
 ]

@@ -88,11 +88,20 @@ class DeltaProtocol(TypedDict):
 
 
 class MetaState:
+    delta_path: str
     last_metadata: Union[dict, None] = None
     protocol: Union[DeltaProtocol, None] = None
     add_actions: dict[str, dict] = {}
     last_commit_info: Union[dict, None] = None
     version: int = 0
+
+    def __init__(self, delta_path: str) -> None:
+        self.delta_path = delta_path
+        self.last_metadata = None
+        self.protocol = None
+        self.add_actions = {}
+        self.last_commit_info = None
+        self.version = 0
 
     def get_add_actions_filtered(self, conditions: "Optional[FilterType]" = None):
         from deltalake2db.filter_by_meta import _can_filter
@@ -127,12 +136,25 @@ class MetaState:
 
         return None
 
-    def __init__(self) -> None:
-        self.last_metadata = None
-        self.add_actions = {}
+    def update_incremental(
+        self, engine: "MetadataEngine", up_to_version: Optional[int] = None
+    ) -> None:
+        current_version = self.version + 1
+        while up_to_version is None or current_version <= up_to_version:
+            commit_file = (
+                self.delta_path.rstrip("/")
+                + f"/_delta_log/{_delta_fn(current_version)}.json"
+            )
+            try:
+                commit_data = engine.read_jsonl(commit_file)
+            except FileNotFoundError:
+                break
+            for action in commit_data:
+                _process_meta_data(action, self, current_version)
+            current_version += 1
 
 
-def process_meta_data(actions: dict, state: MetaState, version: int):
+def _process_meta_data(actions: dict, state: MetaState, version: int):
     if actions.get("metaData"):
         state.last_metadata = actions["metaData"]
     if actions.get("protocol"):
@@ -291,7 +313,7 @@ def get_meta(
         )[0]
     except FileNotFoundError:
         checkpoint = None
-    state = MetaState()
+    state = MetaState(delta_path=delta_path)
     if checkpoint:
         check_point_version = checkpoint.get("version", 0)
         if version is not None and version < check_point_version:
@@ -306,7 +328,7 @@ def get_meta(
             )
             check_point_data = engine.read_parquet(check_point_file)
             for action in check_point_data:
-                process_meta_data(action, state, check_point_version)
+                _process_meta_data(action, state, check_point_version)
             start_version = check_point_version + 1
         except FileNotFoundError:
             start_version = 0
@@ -322,6 +344,6 @@ def get_meta(
         except FileNotFoundError:
             break
         for action in commit_data:
-            process_meta_data(action, state, current_version)
+            _process_meta_data(action, state, current_version)
         current_version += 1
     return state
