@@ -59,6 +59,11 @@ def get_filter_expr(
                     expr = ex.column(k, quoted=True).is_(ex.Null())
                 else:
                     expr = ex.column(k, quoted=True).eq(ex.convert(v))
+            elif operator == "<>":
+                if v is None:
+                    expr = ~ex.column(k, quoted=True).is_(ex.Null())
+                else:
+                    expr = ex.column(k, quoted=True).neq(ex.convert(v))
             elif operator == "<":
                 expr = ex.column(k, quoted=True) < ex.convert(v)
             elif operator == "<=":

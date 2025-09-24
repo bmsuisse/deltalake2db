@@ -79,6 +79,15 @@ def test_strange_cols(use_delta_ext):
         print(con.df())
 
 
+def test_filter_all():
+    from deltalake2db.sql_utils import get_filter_expr
+    from deltalake2db.filter_by_meta import Operator
+    from typing import get_args
+
+    for op in get_args(Operator):
+        get_filter_expr([("a", op, 1 if op not in ("in", "not in") else [1, 2, 3])])
+
+
 def test_filter_number():
     dt = "tests/data/user"
 
