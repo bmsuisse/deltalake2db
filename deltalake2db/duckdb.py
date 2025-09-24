@@ -369,7 +369,9 @@ def create_view_for_delta(
 
 def get_sql_for_delta_expr(
     table_or_path: "Union[Path , str]",
-    conditions: Optional[Union[FilterType, FilterTypeOld]] = None,
+    conditions: Optional[
+        Union[FilterType, FilterTypeOld, Sequence[ex.Expression]]
+    ] = None,
     select: Union[Sequence[Union[str, ex.Expression]], None] = None,
     distinct=False,
     cte_wrap_name: Union[str, None] = None,
@@ -393,7 +395,7 @@ def get_sql_for_delta_expr(
     is_azure = base_path.startswith("az://") or base_path.startswith("abfss://")
     account_name_path = get_account_name_from_path(base_path) if is_azure else None
     if conditions is not None:
-        conditions = to_new_filter_type(conditions)
+        conditions = to_new_filter_type(conditions)  # type: ignore
     conds = squ.get_filter_expr(conditions)
     owns_con = False
     if duck_con is None:

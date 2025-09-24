@@ -1,9 +1,10 @@
 from pathlib import Path
-from typing import Optional, Sequence, Any, TypeVar
+from typing import Optional, Sequence, Any, TypeVar, TYPE_CHECKING
 import sqlglot.expressions as ex
 from typing import Union
 
-from deltalake2db.filter_by_meta import FilterType
+if TYPE_CHECKING:
+    from deltalake2db.filter_by_meta import FilterType, Operator
 
 
 def read_parquet(
@@ -42,30 +43,36 @@ def union(selects: Sequence[ex.Expression], *, distinct: bool) -> ex.Expression:
         )
 
 
-def get_filter_expr(conditions: Optional[FilterType]):
+def get_filter_expr(
+    conditions: "Optional[Sequence[Union[tuple[str, Operator, Any], ex.Expression]]]",
+):
     if not conditions:
         return None
     result_expr = None
-    for k, operator, v in conditions:
-        if operator == "=":
-            if v is None:
-                expr = ex.column(k, quoted=True).is_(ex.Null())
-            else:
-                expr = ex.column(k, quoted=True).eq(ex.convert(v))
-        elif operator == "<":
-            expr = ex.column(k, quoted=True) < ex.convert(v)
-        elif operator == "<=":
-            expr = ex.column(k, quoted=True) <= ex.convert(v)
-        elif operator == ">":
-            expr = ex.column(k, quoted=True) > ex.convert(v)
-        elif operator == ">=":
-            expr = ex.column(k, quoted=True) >= ex.convert(v)
-        elif operator == "in":
-            expr = ex.column(k, quoted=True).isin(*[ex.convert(i) for i in v])
-        elif operator == "not in":
-            expr = ~ex.column(k, quoted=True).isin(*[ex.convert(i) for i in v])
+    for tuple_or_expr in conditions:
+        if isinstance(tuple_or_expr, ex.Expression):
+            expr = tuple_or_expr
         else:
-            raise ValueError(f"Unsupported operator: {operator}")
+            k, operator, v = tuple_or_expr
+            if operator == "=":
+                if v is None:
+                    expr = ex.column(k, quoted=True).is_(ex.Null())
+                else:
+                    expr = ex.column(k, quoted=True).eq(ex.convert(v))
+            elif operator == "<":
+                expr = ex.column(k, quoted=True) < ex.convert(v)
+            elif operator == "<=":
+                expr = ex.column(k, quoted=True) <= ex.convert(v)
+            elif operator == ">":
+                expr = ex.column(k, quoted=True) > ex.convert(v)
+            elif operator == ">=":
+                expr = ex.column(k, quoted=True) >= ex.convert(v)
+            elif operator == "in":
+                expr = ex.column(k, quoted=True).isin(*[ex.convert(i) for i in v])
+            elif operator == "not in":
+                expr = ~ex.column(k, quoted=True).isin(*[ex.convert(i) for i in v])
+            else:
+                raise ValueError(f"Unsupported operator: {operator}")
         if result_expr is None:
             result_expr = expr
         else:
