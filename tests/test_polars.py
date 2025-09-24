@@ -203,6 +203,15 @@ def test_filter_number(use_pyarrow):
     assert df.shape[0] > 0
 
 
+def test_filter_all():
+    from deltalake2db.polars import _get_polars_expr
+    from deltalake2db.filter_by_meta import Operator
+    from typing import get_args
+
+    for op in get_args(Operator):
+        _get_polars_expr([("a", op, 1 if op not in ("in", "not in") else [1, 2, 3])])
+
+
 def test_filter_name():
     dt = "tests/data/user"
 

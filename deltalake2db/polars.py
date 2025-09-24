@@ -299,6 +299,8 @@ def _get_polars_expr(conditions: FilterType) -> "pl.Expr":
             expr = pl.col(key) > value
         elif operator == ">=":
             expr = pl.col(key) >= value
+        elif operator == "<>":
+            expr = pl.col(key) != value
         elif operator == "not in":
             assert isinstance(value, (list, tuple, set))
             expr = ~pl.col(key).is_in(value)
