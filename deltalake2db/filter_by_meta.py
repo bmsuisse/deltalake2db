@@ -1,14 +1,16 @@
 import logging
 import json
 from datetime import date, datetime
-from typing import Mapping, Optional, Any
+from typing import Mapping, Optional, Any, Sequence, Union, Literal, TYPE_CHECKING
 
-from deltalake2db.delta_meta_retrieval import PrimitiveType, StructType
+if TYPE_CHECKING:
+    from deltalake2db.delta_meta_retrieval import PrimitiveType
+
 
 logger = logging.getLogger(__name__)
 
 
-def _partition_value_to_python(value: str, type: PrimitiveType):
+def _partition_value_to_python(value: str, type: "PrimitiveType"):
     if value is None:
         return None
     if type == "string":
@@ -40,7 +42,9 @@ def _partition_value_to_python(value: str, type: PrimitiveType):
     raise ValueError(f"Unknown partition type: {type}")
 
 
-def _serialize_partition_value(value, type: PrimitiveType):
+def _serialize_partition_value(value, type: "PrimitiveType"):
+    if isinstance(value, (list, tuple, set)):
+        return [_serialize_partition_value(v, type) for v in value]
     # implements https://github.com/delta-io/delta/blob/master/PROTOCOL.md#partition-value-serialization
     if value is None:
         return None
@@ -71,22 +75,79 @@ def _to_dict(pv):
     return pv
 
 
+Operator = Literal["<", "=", ">", ">=", "<=", "in", "not in"]
+
+
+def _can_value_filter(
+    value, num_records, null_count, min_vl, max_vl
+) -> Optional[Literal[True]]:
+    if value is not None and (num_records is not None and num_records == null_count):
+        return True
+    if null_count == 0 and value is None:
+        return True
+    if isinstance(min_vl, str) and isinstance(value, str):
+        value = value[0 : len(min_vl)]
+    if (
+        min_vl is not None and max_vl is not None and (value < min_vl or value > max_vl)  # type: ignore
+    ):
+        return True
+    return None
+
+
+FilterTypeOld = Mapping[str, Any]
+FilterType = Sequence[tuple[str, Operator, Any]]
+
+
+def to_new_filter_type(conditions: Union[FilterTypeOld, FilterType]) -> FilterType:
+    if isinstance(conditions, Sequence):
+        return conditions
+    return [(k, "=", v) for k, v in conditions.items()]
+
+
 def _can_filter(
     action: dict,
-    conditions: Mapping[str, Any],
-    typeMap: Optional[Mapping[str, PrimitiveType]] = None,
+    conditions: FilterType,
+    typeMap: "Optional[Mapping[str, PrimitiveType]]" = None,
 ) -> bool:
     # see https://github.com/delta-io/delta/blob/master/PROTOCOL.md#per-file-statistics
     try:
         typeMap = typeMap or {}
-        for key, value in conditions.items():
+        for key, operator, value in conditions:
             part_type = typeMap.get(key, "string")
             part_vls = _to_dict(action.get("partitionValues", {}))
             if key in part_vls:
                 part_vl = part_vls.get(key, None)
-                serialized_value = _serialize_partition_value(value, part_type)
-                if part_vl != serialized_value:
+                if operator == "in":
+                    assert isinstance(value, (list, tuple, set, Sequence))
+                    serialized_value = _serialize_partition_value(value, part_type)
+                    if part_vl not in serialized_value:  # type: ignore
+                        return True
+                elif operator == "=":
+                    if part_vl != _serialize_partition_value(value, part_type):
+                        return True
+                elif operator in [">", ">=", "<", "<="] and part_vl is None:
                     return True
+                elif operator in [">", ">=", "<", "<="] and isinstance(
+                    value, (float, int)
+                ):
+                    if isinstance(value, float):
+                        part_vl = float(part_vl)  # type: ignore
+                    else:
+                        part_vl = int(part_vl)  # type: ignore
+                    if operator == ">" and part_vl <= value:
+                        return True
+                    elif operator == ">=" and part_vl < value:
+                        return True
+                    elif operator == "<" and part_vl >= value:
+                        return True
+                    elif operator == "<=" and part_vl > value:
+                        return True
+                elif operator == "not in":
+                    assert isinstance(value, (list, tuple, set, Sequence))
+                    serialized_value = _serialize_partition_value(value, part_type)
+                    if part_vl in serialized_value:  # type: ignore
+                        return True
+
             stats = {}
             if action.get("stats"):
                 stats = action["stats"]
@@ -94,19 +155,38 @@ def _can_filter(
                     stats = json.loads(stats)
                 if stats.get("numRecords", 0) == 0:
                     return True
+            num_records = stats.get("numRecords", None)
             min_vl = stats.get("minValues", {}).get(key, None)
             max_vl = stats.get("maxValues", {}).get(key, None)
             null_count = stats.get("nullCount", {}).get(key, None)
-            if null_count == 0 and value is None:
+            if num_records == 0:
                 return True
-            if isinstance(min_vl, str) and isinstance(value, str):
-                value = value[0 : len(min_vl)]
-            if (
-                min_vl is not None
-                and max_vl is not None
-                and (value < min_vl or value > max_vl)  # type: ignore
-            ):
+            if operator == "in":
+                assert isinstance(value, (list, tuple, set))
+                if all(
+                    _can_value_filter(v, num_records, null_count, min_vl, max_vl)
+                    for v in value
+                ):
+                    return True
+            elif operator == "=":
+                if _can_value_filter(value, num_records, null_count, min_vl, max_vl):
+                    return True
+            elif operator == "<" and min_vl is not None and value <= min_vl:
                 return True
+            elif operator == "<=" and min_vl is not None and value < min_vl:
+                return True
+            elif operator == ">" and max_vl is not None and value >= max_vl:
+                return True
+            elif operator == ">=" and max_vl is not None and value > max_vl:
+                return True
+            elif operator == "not in":
+                assert isinstance(value, (list, tuple, set))
+                if any(
+                    _can_value_filter(v, num_records, null_count, min_vl, max_vl)
+                    for v in value
+                ):
+                    return True
+
         return False
     except Exception as e:
         logger.warning(f"Could not filter: {e}")

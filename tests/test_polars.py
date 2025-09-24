@@ -176,9 +176,31 @@ def test_filter_number(use_pyarrow):
     assert len(res) == 1
     assert res[0]["FirstName"] == "Peter"
 
+    df = polars_scan_delta(
+        dt,
+        conditions=[("Age", ">=", 23.0)],
+        settings=PolarsSettings(use_pyarrow=use_pyarrow),
+    )
+    res = _collect(df).to_dicts()
+    assert "Peter" in [r["FirstName"] for r in res]
+    for item in res:
+        assert item["Age"] >= 23.0
+
     df2 = polars_scan_delta(dt, conditions={"Age": 500})
 
     assert df.schema == df2.schema, "Schema does not match"
+
+    df3 = polars_scan_delta(dt, conditions=[("Age", "<=", 500)]).collect()
+    assert df3.shape[0] > 2
+
+    df = polars_scan_delta(
+        dt,
+        conditions=[("FirstName", "in", ["Peter", "Hans"])],
+        settings=PolarsSettings(use_pyarrow=use_pyarrow),
+    )
+    if isinstance(df, pl.LazyFrame):
+        df = df.collect()
+    assert df.shape[0] > 0
 
 
 def test_filter_name():

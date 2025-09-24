@@ -24,8 +24,8 @@ def test_stat_pushdown():
     path = "tests/data/data-skipping-basic-stats-all-types-columnmapping-name"
     m = get_meta(PolarsEngine(None), path)
     assert len(list(m.get_add_actions_filtered())) == 1
-    assert len(list(m.get_add_actions_filtered({"as_int": 0}))) == 1
-    assert len(list(m.get_add_actions_filtered({"as_int": 2}))) == 1
+    assert len(list(m.get_add_actions_filtered([("as_int", "=", 0)]))) == 1
+    assert len(list(m.get_add_actions_filtered([("as_int", "=", 2)]))) == 1
 
 
 def test_filtering():
@@ -38,7 +38,7 @@ def test_filtering():
         len(
             list(
                 m.get_add_actions_filtered(
-                    {"as_date": date.fromisoformat("2021-09-08")}
+                    [("as_date", "=", date.fromisoformat("2021-09-08"))]
                 )
             )
         )
@@ -48,12 +48,20 @@ def test_filtering():
         len(
             list(
                 m.get_add_actions_filtered(
-                    {"as_date": date.fromisoformat("2025-09-08")}
+                    [("as_date", "=", date.fromisoformat("2025-09-08"))]
                 )
             )
         )
         == 0
     )
 
-    assert len(list(m.get_add_actions_filtered({"as_string": None}))) == 1
-    assert len(list(m.get_add_actions_filtered({"as_string": "0asfd"}))) == 0
+    assert len(list(m.get_add_actions_filtered([("as_string", "=", None)]))) == 1
+    assert (
+        len(list(m.get_add_actions_filtered([("as_string", "in", [None, "0asdf2"])])))
+        == 1
+    )
+    assert len(list(m.get_add_actions_filtered([("as_string", "=", "0asfd")]))) == 0
+    assert len(list(m.get_add_actions_filtered([("as_int", ">=", "-1")]))) == 2
+    assert len(list(m.get_add_actions_filtered([("as_int", ">", 0)]))) == 1
+    assert len(list(m.get_add_actions_filtered([("as_int", ">", 1)]))) == 0
+    assert len(list(m.get_add_actions_filtered([("as_int", ">=", 1)]))) == 1

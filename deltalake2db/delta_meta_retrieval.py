@@ -12,9 +12,12 @@ from typing import (
 )
 import json
 
+
 if TYPE_CHECKING:
     import duckdb
     import pyarrow.fs as pafs
+    from deltalake2db.filter_by_meta import FilterType
+
 
 PrimitiveType = Literal[
     "string",
@@ -91,7 +94,7 @@ class MetaState:
     last_commit_info: Union[dict, None] = None
     version: int = 0
 
-    def get_add_actions_filtered(self, conditions: Optional[Mapping[str, Any]] = None):
+    def get_add_actions_filtered(self, conditions: "Optional[FilterType]" = None):
         from deltalake2db.filter_by_meta import _can_filter
 
         all_fields = self.schema["fields"] if self.schema else []
