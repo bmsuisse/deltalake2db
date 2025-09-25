@@ -107,16 +107,18 @@ def to_new_filter_type(conditions: Union[FilterTypeOld, FilterType]) -> FilterTy
 def _can_filter(
     action: dict,
     conditions: FilterType,
-    typeMap: "Optional[Mapping[str, PrimitiveType]]" = None,
+    typeMap: "Mapping[str, PrimitiveType]",
+    logical2physical: "Mapping[str, str]",
 ) -> bool:
     # see https://github.com/delta-io/delta/blob/master/PROTOCOL.md#per-file-statistics
     try:
         typeMap = typeMap or {}
-        for key, operator, value in conditions:
-            part_type = typeMap.get(key, "string")
+        for logical_name, operator, value in conditions:
+            physical_name = logical2physical.get(logical_name, logical_name)
+            part_type = typeMap.get(logical_name, "string")
             part_vls = _to_dict(action.get("partitionValues", {}))
-            if key in part_vls:
-                part_vl = part_vls.get(key, None)
+            if physical_name in part_vls:
+                part_vl = part_vls.get(physical_name, None)
                 if operator == "in":
                     assert isinstance(value, (list, tuple, set, Sequence))
                     serialized_value = _serialize_partition_value(value, part_type)
@@ -159,9 +161,9 @@ def _can_filter(
                 if stats.get("numRecords", 0) == 0:
                     return True
             num_records = stats.get("numRecords", None)
-            min_vl = stats.get("minValues", {}).get(key, None)
-            max_vl = stats.get("maxValues", {}).get(key, None)
-            null_count = stats.get("nullCount", {}).get(key, None)
+            min_vl = stats.get("minValues", {}).get(physical_name, None)
+            max_vl = stats.get("maxValues", {}).get(physical_name, None)
+            null_count = stats.get("nullCount", {}).get(physical_name, None)
             if num_records == 0:
                 return True
             if operator == "in":

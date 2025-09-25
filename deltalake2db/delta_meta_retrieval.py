@@ -121,9 +121,17 @@ class MetaState:
             ): cast(PrimitiveType, f["type"])
             for f in all_fields
         }
+        logical2physical: dict[str, str] = {
+            f["name"]: f.get("metadata", {}).get(
+                "delta.columnMapping.physicalName", f["name"]
+            )
+            for f in all_fields
+        }
         total_count = 0
         for ac in self.add_actions.values():
-            if conditions is not None and _can_filter(ac, conditions, physicalTypeMap):
+            if conditions is not None and _can_filter(
+                ac, conditions, physicalTypeMap, logical2physical
+            ):
                 continue
             yield ac
 

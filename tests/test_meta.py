@@ -25,7 +25,7 @@ def test_stat_pushdown():
     m = get_meta(PolarsEngine(None), path)
     assert len(list(m.get_add_actions_filtered())) == 1
     assert len(list(m.get_add_actions_filtered([("as_int", "=", 0)]))) == 1
-    assert len(list(m.get_add_actions_filtered([("as_int", "=", 2)]))) == 1
+    assert len(list(m.get_add_actions_filtered([("as_int", "=", 2)]))) == 0
 
 
 def test_filtering():
