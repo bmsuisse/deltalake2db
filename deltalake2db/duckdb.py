@@ -405,7 +405,7 @@ def get_sql_for_delta_expr(
         owns_con = True
     if use_delta_ext:
         load_install_extension(duck_con, "delta")
-    if use_fsspec:
+    if use_fsspec and "://" in base_path:
         fake_protocol = apply_storage_options_fsspec(
             duck_con,
             base_path,
