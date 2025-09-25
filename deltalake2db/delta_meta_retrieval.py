@@ -154,6 +154,12 @@ class MetaState:
         return {}
 
     @property
+    def partition_columns(self) -> Sequence[str]:
+        if self.last_metadata:
+            return self.last_metadata.get("partitionColumns", [])
+        return []
+
+    @property
     def last_write_time(self):
         from datetime import datetime, timezone
 
