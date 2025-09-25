@@ -323,6 +323,7 @@ def scan_delta_union(
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     version: "Optional[int]" = None,
+    limit: Optional[int] = None,
 ) -> "pl.LazyFrame": ...
 
 
@@ -335,6 +336,7 @@ def scan_delta_union(
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     settings: "Optional[PolarsSettings]" = None,
     version: "Optional[int]" = None,
+    limit: Optional[int] = None,
 ) -> "Union[pl.LazyFrame, pl.DataFrame]": ...
 
 
@@ -346,6 +348,7 @@ def scan_delta_union(
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     settings: "Optional[PolarsSettings]" = None,
     version: "Optional[int]" = None,
+    limit: Optional[int] = None,
 ) -> "Union[pl.LazyFrame, pl.DataFrame]":
     import polars as pl
     import polars.datatypes as pldt
@@ -411,7 +414,7 @@ def scan_delta_union(
     else:
         pyarrow_opts = None
         storage_options_for_fsspec = None
-    for ac in delta_meta.get_add_actions_filtered(conditions):
+    for ac in delta_meta.get_add_actions_filtered(conditions, limit=limit):
         fullpath = os.path.join(path_for_delta, ac["path"]).replace("\\", "/")
         if settings.use_pyarrow:
             ds = pl.read_parquet(
@@ -509,6 +512,8 @@ def scan_delta_union(
             if conditions is not None
             else base_ds.select(*selects)
         )
+        if limit is not None:
+            ds = ds.limit(limit)
         all_ds.append(ds)  # type: ignore
     if len(all_ds) == 0:
         return pl.DataFrame(

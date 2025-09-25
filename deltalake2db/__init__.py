@@ -12,6 +12,8 @@ from .filter_by_meta import FilterType, FilterTypeOld, Operator
 from .delta_meta_retrieval import (
     get_meta as get_deltalake_meta,
     MetaState as DeltaTableMeta,
+    PolarsEngine as PolarsMetaEngine,
+    DuckDBEngine as DuckDBMetaEngine,
 )
 
 __all__ = [
@@ -29,4 +31,6 @@ __all__ = [
     "DeltaTableMeta",
     "DeltaProtocolError",
     "Operator",
+    "PolarsMetaEngine",
+    "DuckDBMetaEngine",
 ]

@@ -77,3 +77,12 @@ def test_filtering():
     assert len(list(m.get_add_actions_filtered([("as_int", ">", 0)]))) == 1
     assert len(list(m.get_add_actions_filtered([("as_int", ">", 1)]))) == 0
     assert len(list(m.get_add_actions_filtered([("as_int", ">=", 1)]))) == 1
+
+
+def test_limit_pushdown():
+    from deltalake2db import get_deltalake_meta, PolarsMetaEngine
+
+    dt = "tests/data/data-skipping-basic-stats-all-types-columnmapping-name"
+    m = get_deltalake_meta(PolarsMetaEngine(None), dt)
+    assert len(list(m.get_add_actions_filtered(None, limit=0))) == 1
+    assert len(list(m.get_add_actions_filtered([], limit=0))) == 1
