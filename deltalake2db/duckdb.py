@@ -348,6 +348,7 @@ def create_view_for_delta(
     use_delta_ext=False,
     select: "Optional[list[str]]" = None,
     version: "Optional[int]" = None,
+    limit: Optional[int] = None,
 ):
     sql = get_sql_for_delta(
         delta_table,
@@ -359,6 +360,7 @@ def create_view_for_delta(
         use_delta_ext=use_delta_ext,
         select=select,
         version=version,
+        limit=limit,
     )
     assert '"' not in view_name
     if overwrite:
@@ -385,6 +387,7 @@ def get_sql_for_delta_expr(
     use_fsspec=False,
     use_delta_ext=False,
     version: "Optional[int]" = None,
+    limit: Optional[int] = None,
 ) -> ex.Select:
     if isinstance(table_or_path, str):
         base_path = table_or_path
@@ -432,9 +435,7 @@ def get_sql_for_delta_expr(
             file_selects: list[ex.Select] = []
             assert meta_state.schema is not None
             delta_fields = meta_state.schema["fields"]
-            for ac in meta_state.get_add_actions_filtered(
-                conditions if isinstance(conditions, dict) else None
-            ):
+            for ac in meta_state.get_add_actions_filtered(conditions, limit=limit):
                 if action_filter and not action_filter(ac):
                     continue
                 fullpath = base_path + "/" + ac["path"]
@@ -526,6 +527,8 @@ def get_sql_for_delta_expr(
                 se = se.distinct()
             if conds is not None:
                 se = se.where(conds)
+            if limit is not None:
+                se = se.limit(limit)
             se = se.from_(delta_table_cte_name)
 
             if cte_wrap_name:
@@ -554,6 +557,8 @@ def get_sql_for_delta_expr(
                 se = se.distinct()
             if conds is not None:
                 se = se.where(conds)
+            if limit is not None:
+                se = se.limit(limit)
             return se
 
     finally:
@@ -576,6 +581,7 @@ def get_sql_for_delta(
     use_fsspec: bool = False,
     use_delta_ext=False,
     version: "Optional[int]" = None,
+    limit: Optional[int] = None,
 ) -> str:
     expr = get_sql_for_delta_expr(
         table_or_path=dt,
@@ -591,6 +597,7 @@ def get_sql_for_delta(
         use_fsspec=use_fsspec,
         use_delta_ext=use_delta_ext,
         version=version,
+        limit=limit,
     )
     if cte_wrap_name:
         suffix_sql = ex.select(ex.Star()).from_(cte_wrap_name).sql(dialect="duckdb")

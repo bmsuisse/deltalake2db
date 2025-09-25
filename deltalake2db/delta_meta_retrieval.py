@@ -87,6 +87,12 @@ class DeltaProtocol(TypedDict):
     writerFeatures: Optional[Sequence[str]]
 
 
+def _to_dict(d):
+    if isinstance(d, list):
+        return {k["key"]: k["value"] for k in d}
+    return d
+
+
 class MetaState:
     delta_path: str
     last_metadata: Union[dict, None] = None
@@ -103,7 +109,9 @@ class MetaState:
         self.last_commit_info = None
         self.version = 0
 
-    def get_add_actions_filtered(self, conditions: "Optional[FilterType]" = None):
+    def get_add_actions_filtered(
+        self, conditions: "Optional[FilterType]" = None, limit: Optional[int] = None
+    ):
         from deltalake2db.filter_by_meta import _can_filter
 
         all_fields = self.schema["fields"] if self.schema else []
@@ -113,10 +121,29 @@ class MetaState:
             ): cast(PrimitiveType, f["type"])
             for f in all_fields
         }
+        total_count = 0
         for ac in self.add_actions.values():
             if conditions is not None and _can_filter(ac, conditions, physicalTypeMap):
                 continue
             yield ac
+
+            if not conditions and limit is not None:
+                if ac.get("stats"):
+                    stats = ac["stats"]
+                    if isinstance(stats, str):
+                        stats = json.loads(stats)
+                    if "numRecords" in stats:
+                        nr = stats["numRecords"]
+                        if nr is not None:
+                            total_count += nr
+                            if total_count >= limit:
+                                break
+
+    @property
+    def configuration(self) -> dict:
+        if self.last_metadata:
+            return _to_dict(self.last_metadata.get("configuration", {}))
+        return {}
 
     @property
     def last_write_time(self):
