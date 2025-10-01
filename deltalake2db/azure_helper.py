@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING, Callable, Union
+from typing import Mapping, Optional, TYPE_CHECKING, Callable, Union, Any
 from pathlib import Path
 
 if TYPE_CHECKING:
@@ -33,7 +33,7 @@ def _get_credential_from_chain(
     return cred
 
 
-def get_storage_options_fsspec(storage_options: dict):
+def get_storage_options_fsspec(storage_options: Mapping[str, Any]):
     use_emulator = storage_options.get("use_emulator", "0") in ["1", "True", "true"]
     if "connection_string" not in storage_options and use_emulator:
         return {"connection_string": AZURE_EMULATOR_CONNECTION_STRING}
@@ -44,13 +44,13 @@ def get_storage_options_fsspec(storage_options: dict):
         and "account_name" in storage_options
         and "chain" not in storage_options
     ):  # anon is true by default in fsspec which makes no sense mostly
-        return {"anon": False} | storage_options
+        return {"anon": False} | dict(storage_options)
     if "chain" in storage_options:
         chain = storage_options["chain"]
         creds = chain.split(";")
         assert len(creds) == 1, "chain must be one credential for fsspec"
         cred = creds[0]
-        storage_options2 = storage_options.copy()
+        storage_options2 = dict(storage_options)
         storage_options2.pop("chain", None)
         if cred == "default":
             return {"anon": False} | storage_options2

@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Union, cast
 import sqlglot.expressions as ex
 from deltalake2db.azure_helper import (
     get_storage_options_fsspec,
@@ -162,12 +162,12 @@ def load_install_extension(con: "duckdb.DuckDBPyConnection", ext_name: str):
 def apply_storage_options(
     con: "duckdb.DuckDBPyConnection",
     uri: Union[str, Path],
-    storage_options: Optional[dict],
+    storage_options: Optional[Mapping[str, Any]],
     *,
     use_fsspec: bool = False,
 ):
     if storage_options is None:
-        return
+        return uri, storage_options
     if isinstance(uri, str) and (
         ".blob.core.windows.net" in uri or ".dfs.core.windows.net" in uri
     ):
@@ -178,7 +178,7 @@ def apply_storage_options(
     else:
         account_name_from_url = None
     if use_fsspec:
-        apply_storage_options_fsspec(
+        uri = apply_storage_options_fsspec(
             con,
             uri if isinstance(uri, str) else str(uri.absolute()),
             storage_options,
@@ -190,12 +190,13 @@ def apply_storage_options(
             storage_options,
             account_name_path=account_name_from_url,
         )
+    return uri, storage_options
 
 
 def apply_storage_options_fsspec(
     con: "duckdb.DuckDBPyConnection",
     base_path: str,
-    storage_options: dict,
+    storage_options: Mapping[str, Any],
     account_name_path: Optional[str] = None,
 ):
     use_emulator = storage_options.get("use_emulator", "0") in ["1", "True", "true"]
@@ -215,12 +216,12 @@ def apply_storage_options_fsspec(
 
         con.register_filesystem(fs)  # type: ignore
 
-    return proto_name_duckdb
+    return proto_name_duckdb + "://" + base_path.split("://")[1]
 
 
 def apply_storage_options_azure_ext(
     con: "duckdb.DuckDBPyConnection",
-    storage_options: dict,
+    storage_options: Mapping[str, Any],
     *,
     type="azure",
     account_name_path: Optional[str] = None,
@@ -409,13 +410,12 @@ def get_sql_for_delta_expr(
     if use_delta_ext:
         load_install_extension(duck_con, "delta")
     if use_fsspec and "://" in base_path:
-        fake_protocol = apply_storage_options_fsspec(
+        base_path = apply_storage_options_fsspec(
             duck_con,
             base_path,
             storage_options or {},
             account_name_path=account_name_path,
         )
-        base_path = fake_protocol + "://" + base_path.split("://")[1]
     elif is_azure:
         apply_storage_options_azure_ext(
             duck_con,
@@ -428,7 +428,15 @@ def get_sql_for_delta_expr(
         if not use_delta_ext:
             from .protocol_check import check_is_supported
 
-            meta_state = get_meta(DuckDBEngine(duck_con), base_path, version=version)
+            meta_state = get_meta(
+                DuckDBEngine(
+                    duck_con,
+                    use_fsspec=use_fsspec,
+                ),
+                base_path,
+                storage_options=storage_options,
+                version=version,
+            )
             check_is_supported(meta_state)
             delta_table_cte_name = delta_table_cte_name or sql_prefix + "_delta_table"
 
@@ -499,9 +507,7 @@ def get_sql_for_delta_expr(
                     else:
                         cols_sql.append(ex.Null().as_(field_name))
 
-                select_pq = ex.select(
-                    *cols_sql
-                ).from_(
+                select_pq = ex.select(*cols_sql).from_(
                     squ.read_parquet(ex.convert(fullpath))
                 )  # "SELECT " + ", ".join(cols_sql) + " FROM read_parquet('" + fullpath + "')"
                 file_selects.append(select_pq)
