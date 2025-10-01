@@ -150,10 +150,12 @@ def _get_type(
         return pl.Struct(
             [
                 pl.Field(
-                    f["name"]
-                    if not physical
-                    else f.get("metadata", {}).get(
-                        "delta.columnMapping.physicalName", f["name"]
+                    (
+                        f["name"]
+                        if not physical
+                        else f.get("metadata", {}).get(
+                            "delta.columnMapping.physicalName", f["name"]
+                        )
                     ),
                     _get_type(field_to_type(f), physical, settings),
                 )
@@ -225,7 +227,10 @@ def get_polars_schema(
         settings = PolarsSettings()
 
     delta_meta = get_meta(
-        PolarsEngine(storage_options), str(delta_table), version=version
+        PolarsEngine(),
+        str(delta_table),
+        storage_options=storage_options,
+        version=version,
     )
 
     check_is_supported(delta_meta)
@@ -362,7 +367,7 @@ def scan_delta_union(
         delta_table, storage_options, get_credential
     )
     delta_meta = get_meta(
-        PolarsEngine(storage_options_for_delta), str(delta_table), version=version
+        PolarsEngine(), str(delta_table), storage_options_for_delta, version=version
     )
     check_is_supported(delta_meta)
     all_ds: Union[list[pl.LazyFrame], list[pl.DataFrame]] = []
@@ -419,7 +424,11 @@ def scan_delta_union(
         if settings.use_pyarrow:
             ds = pl.read_parquet(
                 fullpath,
-                storage_options=storage_options_for_fsspec,
+                storage_options=(
+                    dict(storage_options_for_fsspec)
+                    if storage_options_for_fsspec
+                    else None
+                ),
                 glob=False,
                 use_pyarrow=True,
                 pyarrow_options=pyarrow_opts,
@@ -463,15 +472,17 @@ def scan_delta_union(
                 extra_columns="ignore",
             )
             if _versiontuple(pl.__version__) >= (1, 31)
-            else pl.scan_parquet(
-                fullpath,
-                storage_options=storage_options_for_delta,
-                glob=False,
-                schema=physical_schema_no_parts,
-                allow_missing_columns=True,
+            else (
+                pl.scan_parquet(
+                    fullpath,
+                    storage_options=storage_options_for_delta,
+                    glob=False,
+                    schema=physical_schema_no_parts,
+                    allow_missing_columns=True,
+                )
+                if ds is None
+                else _cast_schema(ds, physical_schema_no_parts)
             )
-            if ds is None
-            else _cast_schema(ds, physical_schema_no_parts)
         )
         selects = []
         for field in all_fields:

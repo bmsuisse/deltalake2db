@@ -6,7 +6,7 @@ def test_last_write_time():
     import deltalake
 
     for tbl in ["user"]:
-        meta = get_meta(PolarsEngine(None), f"tests/data/{tbl}")
+        meta = get_meta(PolarsEngine(), f"tests/data/{tbl}")
         assert meta.last_write_time is not None
         dt = deltalake.DeltaTable(f"tests/data/{tbl}")
 
@@ -22,7 +22,7 @@ def test_stat_pushdown():
     from deltalake2db.delta_meta_retrieval import get_meta, PolarsEngine
 
     path = "tests/data/data-skipping-basic-stats-all-types-columnmapping-name"
-    m = get_meta(PolarsEngine(None), path)
+    m = get_meta(PolarsEngine(), path)
     assert len(list(m.get_add_actions_filtered())) == 1
     assert len(list(m.get_add_actions_filtered([("as_int", "=", 0)]))) == 1
     assert len(list(m.get_add_actions_filtered([("as_int", "=", 2)]))) == 0
@@ -32,7 +32,7 @@ def test_filtering():
     from deltalake2db.delta_meta_retrieval import get_meta, PolarsEngine
 
     dt = "tests/data/data-reader-partition-values"
-    m = get_meta(PolarsEngine(None), dt)
+    m = get_meta(PolarsEngine(), dt)
     assert len(list(m.get_add_actions_filtered())) == 3
     assert (
         len(
@@ -83,6 +83,6 @@ def test_limit_pushdown():
     from deltalake2db import get_deltalake_meta, PolarsMetaEngine
 
     dt = "tests/data/data-skipping-basic-stats-all-types-columnmapping-name"
-    m = get_deltalake_meta(PolarsMetaEngine(None), dt)
+    m = get_deltalake_meta(PolarsMetaEngine(), dt)
     assert len(list(m.get_add_actions_filtered(None, limit=0))) == 1
     assert len(list(m.get_add_actions_filtered([], limit=0))) == 1

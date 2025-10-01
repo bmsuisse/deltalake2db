@@ -101,13 +101,16 @@ class MetaState:
     last_commit_info: Union[dict, None] = None
     version: int = 0
 
-    def __init__(self, delta_path: str) -> None:
+    def __init__(
+        self, delta_path: str, storage_options: Optional[Mapping[str, Any]] = None
+    ) -> None:
         self.delta_path = delta_path
         self.last_metadata = None
         self.protocol = None
         self.add_actions = {}
         self.last_commit_info = None
         self.version = 0
+        self.storage_options = storage_options
 
     def get_add_actions_filtered(
         self, conditions: "Optional[FilterType]" = None, limit: Optional[int] = None
@@ -187,7 +190,9 @@ class MetaState:
                 + f"/_delta_log/{_delta_fn(current_version)}.json"
             )
             try:
-                commit_data = engine.read_jsonl(commit_file)
+                commit_data = engine.read_jsonl(
+                    commit_file, storage_options=self.storage_options
+                )
             except FileNotFoundError:
                 break
             for action in commit_data:
@@ -213,14 +218,18 @@ def _process_meta_data(actions: dict, state: MetaState, version: int):
 
 class MetadataEngine(Protocol):
     def list_files(
-        self, path: str
+        self, path: str, storage_options: Optional[Mapping[str, Any]] = None
     ) -> Sequence[
         str
     ]: ...  # currently unused, but might be required later on (eg, for better time travel)
 
-    def read_jsonl(self, path: str) -> Sequence[dict]: ...
+    def read_jsonl(
+        self, path: str, storage_options: Optional[Mapping[str, Any]] = None
+    ) -> Sequence[dict]: ...
 
-    def read_parquet(self, path: str) -> Sequence[dict]: ...
+    def read_parquet(
+        self, path: str, storage_options: Optional[Mapping[str, Any]] = None
+    ) -> Sequence[dict]: ...
 
 
 class PyArrowEngine(MetadataEngine):
@@ -228,12 +237,19 @@ class PyArrowEngine(MetadataEngine):
         super().__init__()
         self.fs = fs or pafs.LocalFileSystem()
 
-    def list_files(self, path: str) -> Sequence[str]:
+    def list_files(
+        self, path: str, storage_options: Optional[Mapping[str, Any]] = None
+    ) -> Sequence[str]:
+        assert storage_options is None, "for now, storage_options must be None"
         info = self.fs.get_file_info(pafs.FileSelector(path, recursive=True))
         return [f.path for f in info if f.type == pafs.FileType.File]
 
-    def read_jsonl(self, path: str) -> Sequence[dict]:
+    def read_jsonl(
+        self, path: str, storage_options: Optional[Mapping[str, Any]] = None
+    ) -> Sequence[dict]:
         import json
+
+        assert storage_options is None, "for now, storage_options must be None"
 
         result = []
         with self.fs.open_input_stream(path) as f:
@@ -241,8 +257,12 @@ class PyArrowEngine(MetadataEngine):
                 result.append(json.loads(line))
         return result
 
-    def read_parquet(self, path: str) -> Sequence[dict]:
+    def read_parquet(
+        self, path: str, storage_options: Optional[Mapping[str, Any]] = None
+    ) -> Sequence[dict]:
         import pyarrow.parquet as pq
+
+        assert storage_options is None, "for now, storage_options must be None"
 
         with self.fs.open_input_stream(path) as f:
             table = pq.read_table(f)
@@ -250,31 +270,41 @@ class PyArrowEngine(MetadataEngine):
 
 
 class PolarsEngine(MetadataEngine):
-    def __init__(self, storage_options: Optional[dict] = None) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.storage_options = storage_options
 
-    def read_jsonl(self, path: str) -> Sequence[dict]:
+    def read_jsonl(
+        self, path: str, storage_options: Optional[Mapping[str, Any]] = None
+    ) -> Sequence[dict]:
         try:
             import polars as pl
 
-            df = pl.read_ndjson(path, storage_options=self.storage_options)
+            df = pl.read_ndjson(
+                path, storage_options=dict(storage_options) if storage_options else None
+            )
             return df.to_dicts()
         except OSError as e:
             if "404" in str(e) or "No such file or directory" in str(e):
                 raise FileNotFoundError from e
             raise
 
-    def list_files(self, path: str) -> Sequence[str]:
+    def list_files(
+        self, path: str, storage_options: Optional[Mapping[str, Any]] = None
+    ) -> Sequence[str]:
         import os
 
+        assert storage_options is None, "for now, storage_options must be None"
         return os.listdir(path)
 
-    def read_parquet(self, path: str) -> Sequence[dict]:
+    def read_parquet(
+        self, path: str, storage_options: Optional[Mapping[str, Any]] = None
+    ) -> Sequence[dict]:
         try:
             import polars as pl
 
-            df = pl.read_parquet(path, storage_options=self.storage_options)
+            df = pl.read_parquet(
+                path, storage_options=dict(storage_options) if storage_options else None
+            )
             return df.to_dicts()
         except OSError as e:
             if "BlobNotFound" in str(e):
@@ -285,11 +315,31 @@ class PolarsEngine(MetadataEngine):
 
 
 class DuckDBEngine(MetadataEngine):
-    def __init__(self, con: "duckdb.DuckDBPyConnection") -> None:
+    def __init__(
+        self, con: "duckdb.DuckDBPyConnection", use_fsspec: bool = False
+    ) -> None:
         super().__init__()
         self.con = con
+        self.use_fsspec = use_fsspec
+        self._applied_paths = {}
 
-    def list_files(self, path: str) -> Sequence[str]:
+    def _apply_storage_options(
+        self, path: str, storage_options: Optional[Mapping[str, Any]]
+    ):
+        from deltalake2db.duckdb import apply_storage_options
+
+        if new_path := self._applied_paths.get(path):
+            return new_path
+        np, _ = apply_storage_options(
+            self.con, path, storage_options, use_fsspec=self.use_fsspec
+        )
+        self._applied_paths[path] = np
+        return cast(str, np)
+
+    def list_files(
+        self, path: str, storage_options: Optional[Mapping[str, Any]] = None
+    ) -> Sequence[str]:
+        path = self._apply_storage_options(path, storage_options)
         q = f"SELECT * FROM list_files('{path}')"
         with self.con.cursor() as cur:
             cur.execute(q)
@@ -297,8 +347,12 @@ class DuckDBEngine(MetadataEngine):
             desc = [d[0] for d in cur.description]
             return [row[desc.index("file_path")] for row in cur.fetchall()]
 
-    def read_jsonl(self, path: str) -> Sequence[dict]:
+    def read_jsonl(
+        self, path: str, storage_options: Optional[Mapping[str, Any]] = None
+    ) -> Sequence[dict]:
         import duckdb
+
+        path = self._apply_storage_options(path, storage_options)
 
         q = f"SELECT * FROM read_json('{path}', format='newline_delimited')"
         with self.con.cursor() as cur:
@@ -314,8 +368,12 @@ class DuckDBEngine(MetadataEngine):
                     raise FileNotFoundError from e
                 raise
 
-    def read_parquet(self, path: str) -> Sequence[dict]:
+    def read_parquet(
+        self, path: str, storage_options: Optional[Mapping[str, Any]] = None
+    ) -> Sequence[dict]:
         import duckdb
+
+        path = self._apply_storage_options(path, storage_options)
 
         q = f"SELECT * FROM read_parquet('{path}')"
         with self.con.cursor() as cur:
@@ -346,15 +404,18 @@ def field_to_type(field: Field) -> DataType:
 
 
 def get_meta(
-    engine: MetadataEngine, delta_path: str, *, version: Optional[int] = None
+    engine: MetadataEngine,
+    delta_path: str,
+    storage_options: Optional[Mapping[str, Any]] = None,
+    version: Optional[int] = None,
 ) -> MetaState:
     try:
         checkpoint = engine.read_jsonl(
-            delta_path.rstrip("/") + "/_delta_log/_last_checkpoint"
+            delta_path.rstrip("/") + "/_delta_log/_last_checkpoint", storage_options
         )[0]
     except FileNotFoundError:
         checkpoint = None
-    state = MetaState(delta_path=delta_path)
+    state = MetaState(delta_path=delta_path, storage_options=storage_options)
     if checkpoint:
         check_point_version = checkpoint.get("version", 0)
         if version is not None and version < check_point_version:
@@ -367,7 +428,9 @@ def get_meta(
                 delta_path.rstrip("/")
                 + f"/_delta_log/{_delta_fn(check_point_version)}.checkpoint.parquet"
             )
-            check_point_data = engine.read_parquet(check_point_file)
+            check_point_data = engine.read_parquet(
+                check_point_file, storage_options=storage_options
+            )
             for action in check_point_data:
                 _process_meta_data(action, state, check_point_version)
             start_version = check_point_version + 1
@@ -381,7 +444,9 @@ def get_meta(
             delta_path.rstrip("/") + f"/_delta_log/{_delta_fn(current_version)}.json"
         )
         try:
-            commit_data = engine.read_jsonl(commit_file)
+            commit_data = engine.read_jsonl(
+                commit_file, storage_options=storage_options
+            )
         except FileNotFoundError:
             break
         for action in commit_data:
