@@ -339,7 +339,7 @@ def _to_dict(pv):
 
 def create_view_for_delta(
     con: "duckdb.DuckDBPyConnection",
-    delta_table: "Union[Path , str]",
+    delta_table: "Union[Path , str, MetaState]",
     view_name: str,
     overwrite=True,
     *,
@@ -582,7 +582,7 @@ def get_sql_for_delta_expr(
 
 
 def get_sql_for_delta(
-    dt: "Union[Path, str]",
+    dt: "Union[Path, str, MetaState]",
     conditions: "Optional[Union[FilterType, FilterTypeOld]]" = None,
     select: Union[list[str], None] = None,
     distinct=False,
