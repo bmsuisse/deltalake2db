@@ -1,5 +1,14 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, cast, Union, Optional, Callable, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Mapping,
+    cast,
+    Union,
+    Optional,
+    Callable,
+    overload,
+)
 
 from deltalake2db.azure_helper import (
     get_storage_options_object_store,
@@ -20,6 +29,7 @@ if TYPE_CHECKING:
 from collections import OrderedDict
 import os
 from deltalake2db.delta_meta_retrieval import (
+    MetaState,
     PolarsEngine,
     PrimitiveType,
     get_meta,
@@ -214,10 +224,10 @@ def _get_type(
 
 
 def get_polars_schema(
-    delta_table: "Union[Path, str]",
+    delta_table: "Union[Path, str, MetaState]",
     physical_name: bool = False,
     settings: "Optional[PolarsSettings]" = None,
-    storage_options: "Optional[dict]" = None,
+    storage_options: "Optional[Mapping[str, Any]]" = None,
     version: "Optional[int]" = None,
 ) -> "pl.Schema":
     from .protocol_check import check_is_supported
@@ -226,12 +236,15 @@ def get_polars_schema(
     if settings is None:
         settings = PolarsSettings()
 
-    delta_meta = get_meta(
-        PolarsEngine(),
-        str(delta_table),
-        storage_options=storage_options,
-        version=version,
-    )
+    if isinstance(delta_table, MetaState):
+        delta_meta = delta_table
+    else:
+        delta_meta = get_meta(
+            PolarsEngine(),
+            str(delta_table),
+            storage_options=storage_options,
+            version=version,
+        )
 
     check_is_supported(delta_meta)
     res_dict = OrderedDict()
@@ -322,9 +335,9 @@ def _get_polars_expr(conditions: FilterType) -> "pl.Expr":
 
 @overload
 def scan_delta_union(
-    delta_table: "Union[Path, str]",
+    delta_table: "Union[Path, str, MetaState]",
     conditions: Optional[Union[FilterType, FilterTypeOld]] = None,
-    storage_options: Optional[dict] = None,
+    storage_options: Optional[Mapping[str, Any]] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     version: "Optional[int]" = None,
@@ -334,9 +347,9 @@ def scan_delta_union(
 
 @overload
 def scan_delta_union(
-    delta_table: "Union[Path, str]",
+    delta_table: "Union[Path, str, MetaState]",
     conditions: Optional[Union[FilterType, FilterTypeOld]] = None,
-    storage_options: Optional[dict] = None,
+    storage_options: Optional[Mapping[str, Any]] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     settings: "Optional[PolarsSettings]" = None,
@@ -346,9 +359,9 @@ def scan_delta_union(
 
 
 def scan_delta_union(
-    delta_table: "Union[Path, str]",
+    delta_table: "Union[Path, str, MetaState]",
     conditions: Optional[Union[FilterType, FilterTypeOld]] = None,
-    storage_options: Optional[dict] = None,
+    storage_options: Optional[Mapping[str, Any]] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     settings: "Optional[PolarsSettings]" = None,
@@ -363,19 +376,25 @@ def scan_delta_union(
         settings = PolarsSettings()
     if conditions is not None:
         conditions = to_new_filter_type(conditions)
-    path_for_delta, storage_options_for_delta = get_storage_options_object_store(
-        delta_table, storage_options, get_credential
-    )
-    delta_meta = get_meta(
-        PolarsEngine(), str(delta_table), storage_options_for_delta, version=version
-    )
+    if isinstance(delta_table, MetaState):
+        delta_meta = delta_table
+        path_for_delta = delta_meta.delta_path
+        storage_options_for_delta = delta_meta.storage_options
+    else:
+        path_for_delta, storage_options_for_delta = get_storage_options_object_store(
+            delta_table, storage_options, get_credential
+        )
+        delta_meta = get_meta(
+            PolarsEngine(), str(delta_table), storage_options_for_delta, version=version
+        )
+
     check_is_supported(delta_meta)
     all_ds: Union[list[pl.LazyFrame], list[pl.DataFrame]] = []
     assert delta_meta.schema is not None
     assert delta_meta.last_metadata is not None
     all_fields = delta_meta.schema["fields"]
     physical_schema = get_polars_schema(
-        delta_table,
+        delta_meta,
         physical_name=True,
         settings=settings,
         storage_options=storage_options_for_delta,
@@ -419,6 +438,9 @@ def scan_delta_union(
     else:
         pyarrow_opts = None
         storage_options_for_fsspec = None
+    storage_options_for_delta = (
+        dict(storage_options_for_delta) if storage_options_for_delta else None
+    )
     for ac in delta_meta.get_add_actions_filtered(conditions, limit=limit):
         fullpath = os.path.join(path_for_delta, ac["path"]).replace("\\", "/")
         if settings.use_pyarrow:
