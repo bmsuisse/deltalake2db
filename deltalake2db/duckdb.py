@@ -18,6 +18,7 @@ import deltalake2db.sql_utils as squ
 from deltalake2db.delta_meta_retrieval import (
     DataType,
     DuckDBEngine,
+    MetaState,
     PrimitiveType,
     get_meta,
     field_to_type,
@@ -371,7 +372,7 @@ def create_view_for_delta(
 
 
 def get_sql_for_delta_expr(
-    table_or_path: "Union[Path , str]",
+    table_or_path: "Union[Path , str, MetaState]",
     conditions: Optional[
         Union[FilterType, FilterTypeOld, Sequence[ex.Expression]]
     ] = None,
@@ -382,7 +383,7 @@ def get_sql_for_delta_expr(
     sql_prefix="delta",
     delta_table_cte_name: Union[str, None] = None,
     duck_con: "Union[duckdb.DuckDBPyConnection, None]" = None,
-    storage_options: Optional[dict] = None,
+    storage_options: Optional[Mapping[str, Any]] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     use_fsspec=False,
@@ -390,10 +391,16 @@ def get_sql_for_delta_expr(
     version: "Optional[int]" = None,
     limit: Optional[int] = None,
 ) -> ex.Select:
-    if isinstance(table_or_path, str):
+    if isinstance(table_or_path, MetaState):
+        meta_state = table_or_path
+        base_path = meta_state.delta_path
+        storage_options = meta_state.storage_options or storage_options
+    elif isinstance(table_or_path, str):
         base_path = table_or_path
+        meta_state = None
     else:
         base_path = str(table_or_path.absolute())
+        meta_state = None
 
     base_path = base_path.removesuffix("/")
     is_azure = base_path.startswith("az://") or base_path.startswith("abfss://")
@@ -428,7 +435,7 @@ def get_sql_for_delta_expr(
         if not use_delta_ext:
             from .protocol_check import check_is_supported
 
-            meta_state = get_meta(
+            meta_state = meta_state or get_meta(
                 DuckDBEngine(
                     duck_con,
                     use_fsspec=use_fsspec,
@@ -507,7 +514,9 @@ def get_sql_for_delta_expr(
                     else:
                         cols_sql.append(ex.Null().as_(field_name))
 
-                select_pq = ex.select(*cols_sql).from_(
+                select_pq = ex.select(
+                    *cols_sql
+                ).from_(
                     squ.read_parquet(ex.convert(fullpath))
                 )  # "SELECT " + ", ".join(cols_sql) + " FROM read_parquet('" + fullpath + "')"
                 file_selects.append(select_pq)
@@ -581,7 +590,7 @@ def get_sql_for_delta(
     cte_wrap_name: Union[str, None] = None,
     sql_prefix="delta",
     duck_con: "Union[duckdb.DuckDBPyConnection, None]" = None,
-    storage_options: Optional[dict] = None,
+    storage_options: Optional[Mapping[str, Any]] = None,
     *,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     use_fsspec: bool = False,
