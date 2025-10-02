@@ -344,7 +344,7 @@ def create_view_for_delta(
     overwrite=True,
     *,
     conditions: Optional[Union[FilterType, FilterTypeOld]] = None,
-    storage_options: Optional[dict] = None,
+    storage_options: Optional[Mapping[str, Any]] = None,
     get_credential: "Optional[Callable[[str], Optional[TokenCredential]]]" = None,
     use_fsspec: bool = False,
     use_delta_ext=False,
